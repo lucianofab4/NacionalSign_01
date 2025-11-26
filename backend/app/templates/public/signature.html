@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <title>Assinatura de Documento</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6fb;
+            color: #1f2937;
+            margin: 0;
+        }
+        header {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 28px 16px;
+            text-align: center;
+        }
+        main {
+            max-width: 680px;
+            margin: -40px auto 40px;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 22px 40px rgba(15, 23, 42, 0.15);
+            padding: 32px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 26px;
+        }
+        h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        a {
+            color: #2563eb;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-sent { background: #dbeafe; color: #1d4ed8; }
+        .status-signed { background: #dcfce7; color: #166534; }
+        .status-refused { background: #fee2e2; color: #b91c1c; }
+        .message {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin: 18px 0;
+            font-size: 14px;
+        }
+        .message-success { background: #dcfce7; color: #166534; }
+        .message-error { background: #fee2e2; color: #b91c1c; }
+        .message-info { background: #e0f2fe; color: #0c4a6e; }
+        .info {
+            margin: 16px 0;
+            color: #475569;
+            font-size: 14px;
+        }
+        .preview-card {
+            margin: 24px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+        .preview-card header {
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 14px 18px;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .preview-body {
+            padding: 18px;
+        }
+        .preview-body iframe,
+        .preview-body embed {
+            width: 100%;
+            min-height: 420px;
+            border: 1px solid #cbd5f5;
+            border-radius: 10px;
+        }
+        .preview-fallback {
+            display: block;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #475569;
+        }
+        form {
+            margin-top: 24px;
+        }
+        fieldset {
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        input[type="text"],
+        input[type="email"],
+        input[type="file"],
+        textarea {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 8px;
+            border: 1px solid #cbd5f5;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+        input[type="file"] {
+            padding: 6px;
+        }
+        .field-group {
+            margin-bottom: 18px;
+        }
+        .checkbox-field {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .checkbox-field input {
+            margin-top: 3px;
+        }
+        .input-hint {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+        .input-error {
+            font-size: 12px;
+            color: #b91c1c;
+            margin-top: 6px;
+        }
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+        .btn-primary { background: #2563eb; color: #ffffff; }
+        .btn-danger { background: #dc2626; color: #ffffff; }
+        .timeline {
+            margin-top: 24px;
+            padding: 18px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            font-size: 13px;
+            color: #475569;
+        }
+        .timeline h3 {
+            margin: 0 0 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .timeline p {
+            margin: 4px 0;
+        }
+        @media (max-width: 720px) {
+            main {
+                margin: -24px 16px 32px;
+                padding: 24px;
+            }
+            header {
+                padding: 24px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>NacionalSign</h1>
+        <p>Fluxo de assinatura eletronica</p>
+    </header>
+    <main>
+        {% if error %}
+            <div class="message message-error">{{ error }}</div>
+        {% endif %}
+        {% if message %}
+            <div class="message message-success">{{ message }}</div>
+        {% endif %}
+
+        {% if signature %}
+            <h2>{{ signature.document_name }}</h2>
+            <p>Ola <strong>{{ signature.signer_name }}</strong>, confira os detalhes abaixo e confirme sua acao.</p>
+            <div class="status-badge status-{{ signature.status.lower() }}">
+                {{ signature.status | upper }}
+            </div>
+            {% if signature.expires_at %}
+                <p class="info">Este link expira em {{ signature.expires_at.strftime('%d/%m/%Y %H:%M:%S UTC') }}.</p>
+            {% endif %}
+
+            {% if not signature.can_sign %}
+                <div class="message message-info">
+                    Esta solicitacao ja foi concluida ou nao esta disponivel para novas acoes. Caso ainda precise assinar,
+                    entre em contato com o responsavel pelo envio para receber um novo link.
+                </div>
+            {% endif %}
+
+            {% if signature.reason %}
+                <p class="info">Motivo informado: {{ signature.reason }}</p>
+            {% endif %}
+
+            <div class="preview-card">
+                <header>Visualizar documento</header>
+                <div class="preview-body">
+                    <iframe id="document-preview" src="/public/signatures/{{ token }}/preview" title="Visualizacao rapida do documento" loading="lazy"></iframe>
+                    <a class="preview-fallback" href="/public/signatures/{{ token }}/preview" target="_blank" rel="noopener">
+                        Abrir documento em nova aba
+                    </a>
+                    <p class="preview-fallback">
+                        Caso o PDF nao apareca automaticamente, utilize o link acima para abrir ou baixar o documento antes de assinar.
+                    </p>
+                </div>
+            </div>
+
+            {% if signature.can_sign %}
+                <form method="post" action="/public/signatures/{{ token }}/page" enctype="multipart/form-data">
+                    <fieldset>
+                        <legend style="font-weight:600; margin-bottom:16px;">Revise seus dados antes de confirmar:</legend>
+
+                        {% if signature.collect_typed_name %}
+                        <div class="field-group">
+                            <label for="typed_name">Nome digitado{% if signature.typed_name_required %} (obrigatorio){% endif %}</label>
+                            <input type="text" id="typed_name" name="typed_name" placeholder="Digite seu nome completo" value="{{ form_data.get('typed_name', '') if form_data else '' }}" {% if signature.typed_name_required %}required{% endif %}>
+                            <p class="input-hint">O nome digitado sera registrado no protocolo de auditoria.</p>
+                        </div>
+                        {% endif %}
+
+                        {% if signature.collect_email_confirmation %}
+                        <div class="field-group">
+                            <label for="confirm_email">Confirme seu e-mail{% if signature.collect_email_confirmation %} (obrigatorio){% endif %}</label>
+                            <input type="email" id="confirm_email" name="confirm_email" placeholder="nome@empresa.com" value="{{ form_data.get('confirm_email', '') if form_data else '' }}" {% if signature.collect_email_confirmation %}required{% endif %}>
+                            <p class="input-hint">Informe o mesmo endereco utilizado pelo solicitante para receber o link ou codigo de acesso.</p>
+                            <p class="input-hint">Se voce recebeu um codigo por e-mail, insira o endereco correto e siga as instrucoes enviadas na mensagem.</p>
+                        </div>
+                        {% endif %}
+
+                        {% if signature.collect_phone_confirmation %}
+                        <div class="field-group">
+                            <label for="confirm_phone_last4">Ultimos 4 digitos do telefone{% if signature.collect_phone_confirmation %} (obrigatorio){% endif %}</label>
+                            <input type="text" id="confirm_phone_last4" name="confirm_phone_last4" maxlength="4" pattern="\d{4}" placeholder="0000" value="{{ form_data.get('confirm_phone_last4', '') if form_data else '' }}" {% if signature.collect_phone_confirmation %}required{% endif %}>
+                            <p class="input-hint">Utilize apenas numeros para confirmar que tem acesso ao telefone informado.</p>
+                            <p class="input-hint">Digitou o telefone errado? Entre em contato com o remetente para atualizar o cadastro antes de prosseguir.</p>
+                        </div>
+                        {% endif %}
+
+                        {% if signature.collect_signature_image %}
+                        <div class="field-group">
+                            <label for="signature_image">Imagem da assinatura{% if signature.signature_image_required %} (obrigatoria){% endif %}</label>
+                            <input type="file" id="signature_image" name="signature_image" accept="image/png,image/jpeg" {% if signature.signature_image_required %}required{% endif %}>
+                            <p class="input-hint">Formatos suportados: PNG ou JPG (max. 2 MB). Verifique se a imagem esta legivel.</p>
+                        </div>
+                        {% endif %}
+
+                        {% if signature.requires_consent %}
+                        <div class="field-group">
+                            <label class="checkbox-field">
+                                <input type="checkbox" name="consent" value="1" {% if signature.signature_image_required %}required{% endif %}>
+                                <span>{{ signature.consent_text }}</span>
+                            </label>
+                            <input type="hidden" name="consent_text" value="{{ signature.consent_text }}">
+                            <input type="hidden" name="consent_version" value="{{ signature.consent_version }}">
+                        </div>
+                        {% endif %}
+
+                        <div class="field-group">
+                            <label for="reason">Justificativa (opcional)</label>
+                            <textarea id="reason" name="reason" placeholder="Descreva um motivo se estiver recusando ou quiser registrar um comentario."></textarea>
+                        </div>
+            <div>
+                <button class="btn-primary" type="submit" name="action" value="sign">Assinar documento agora</button>
+                <button class="btn-danger" type="submit" name="action" value="refuse">Recusar ou reportar problema</button>
+            </div>
+        </fieldset>
+    </form>
+
+                <div class="timeline">
+                    <h3>Precisa de ajuda?</h3>
+                    <p>1. Verifique se o documento acima corresponde ao que voce recebeu.</p>
+                    <p>2. Confirme seus dados e utilize o botao <strong>Assinar Documento</strong>.</p>
+                    <p>3. Caso o link esteja expirado, solicite um novo convite ao remetente.</p>
+                </div>
+            {% else %}
+                <div class="message message-info">
+                    Esta solicitacao ja foi encerrada. Para realizar uma nova acao, solicite um novo link ao remetente.
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="message message-error">
+                Nao foi possivel localizar a solicitacao vinculada a este link. Verifique se o endereco informado esta correto ou solicite um novo convite ao remetente.
+            </div>
+            <div class="timeline">
+                <h3>Como proceder</h3>
+                <p>1. Confirme com quem enviou o documento se o link continua ativo.</p>
+                <p>2. Caso tenha expirdado, sera necessario receber um novo e-mail ou SMS com o acesso.</p>
+                <p>3. Se o problema persistir, contate nossa equipe de suporte informando o nome do documento e da empresa remetente.</p>
+            </div>
+        {% endif %}
+    </main>
+</body>
+</html>

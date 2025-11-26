@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <title>Admin Templates</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f1f5f9; color: #1f2937; margin: 0; }
+        header { background: #0f172a; color: #f8fafc; padding: 24px; }
+        header h1 { margin: 0; }
+        main { max-width: 960px; margin: 24px auto; }
+        .card { background: #ffffff; border-radius: 10px; padding: 24px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1); margin-bottom: 24px; }
+        h2 { margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+        .status { padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+        .status-active { background: #dcfce7; color: #166534; }
+        .status-inactive { background: #fee2e2; color: #b91c1c; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; }
+        input, textarea, select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5f5; margin-bottom: 12px; font: inherit; }
+        textarea { min-height: 120px; font-family: Consolas, monospace; }
+        button { padding: 10px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; margin-right: 8px; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-secondary { background: #64748b; color: #fff; }
+        .btn-danger { background: #dc2626; color: #fff; }
+        .messages { margin-bottom: 16px; }
+        .message { padding: 12px 16px; border-radius: 8px; }
+        .message.success { background: #dcfce7; color: #166534; }
+        .message.error { background: #fee2e2; color: #b91c1c; }
+        pre { background: #0f172a; color: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Administração de Templates</h1>
+        <p>Gerencie fluxos de assinatura reutilizáveis.</p>
+    </header>
+    <main>
+        <div class="card">
+            <div class="messages">
+                {% if message %}
+                    <div class="message success">{{ message }}</div>
+                {% endif %}
+                {% if error %}
+                    <div class="message error">{{ error }}</div>
+                {% endif %}
+            </div>
+            <form method="get" action="/admin/templates">
+                <input type="hidden" name="tenant_id" value="{{ tenant_id }}" />
+                <label for="area">Filtrar por área</label>
+                <select name="area_id" id="area">
+                    <option value="">Todas as áreas</option>
+                    {% for area in areas %}
+                        <option value="{{ area.id }}" {% if selected_area and area.id == selected_area %}selected{% endif %}>{{ area.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn-secondary">Filtrar</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Novo template</h2>
+            <form id="create-template-form" method="post" action="/admin/templates">
+                <input type="hidden" name="action" value="create" />
+                <input type="hidden" name="tenant_id" value="{{ tenant_id }}" />
+                <label for="create_area">Área</label>
+                <select id="create_area" name="area_id" required>
+                    <option value="">Selecione...</option>
+                    {% for area in areas %}
+                        <option value="{{ area.id }}">{{ area.name }}</option>
+                    {% endfor %}
+                </select>
+                <label for="create_name">Nome</label>
+                <input id="create_name" name="name" placeholder="Ex: Fluxo padrão" required />
+                <label for="create_description">Descrição</label>
+                <input id="create_description" name="description" placeholder="Opcional" />
+                <h3>Etapas</h3>
+                <p style="font-size:14px;color:#64748b;">Defina os participantes e ações. O campo "Papel" deve corresponder à função cadastrada no documento.</p>
+                <div id="steps-container"></div>
+                <button type="button" class="btn-secondary" id="add-step">Adicionar etapa</button>
+                <input type="hidden" name="steps_json" id="steps_json" value='[{"order":1,"role":"signer","action":"sign","execution":"sequential"}]' />
+                <button type="submit" class="btn-primary">Criar template</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Templates existentes</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Área</th>
+                        <th>Status</th>
+                        <th>Etapas</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for template in templates %}
+                    <tr>
+                        <td>{{ template.name }}</td>
+                        <td>{{ area_lookup.get(template.area_id | string, template.area_id) }}</td>
+                        <td>
+                            {% if template.is_active %}
+                                <span class="status status-active">Ativo</span>
+                            {% else %}
+                                <span class="status status-inactive">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td><pre>{{ template.config_json }}</pre></td>
+                        <td>
+                            <form method="post" action="/admin/templates" style="margin-bottom:12px;">
+                                <input type="hidden" name="action" value="toggle" />
+                                <input type="hidden" name="tenant_id" value="{{ tenant_id }}" />
+                                {% if selected_area %}<input type="hidden" name="area_id" value="{{ selected_area }}" />{% endif %}
+                                <input type="hidden" name="template_id" value="{{ template.id }}" />
+                                <button type="submit" class="btn-secondary">{{ 'Desativar' if template.is_active else 'Ativar' }}</button>
+                            </form>
+                            <form method="post" action="/admin/templates">
+                                <input type="hidden" name="action" value="duplicate" />
+                                <input type="hidden" name="tenant_id" value="{{ tenant_id }}" />
+                                {% if selected_area %}<input type="hidden" name="area_id" value="{{ selected_area }}" />{% endif %}
+                                <input type="hidden" name="template_id" value="{{ template.id }}" />
+                                <label>Nome da cópia</label>
+                                <input name="duplicate_name" placeholder="Novo nome" required />
+                                <label>Área destino (opcional)</label>
+                                <select name="target_area_id">
+                                    <option value="">Mesma área</option>
+                                    {% for area in areas %}
+                                        <option value="{{ area.id }}">{{ area.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn-primary">Duplicar</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Nenhum template cadastrado.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <script>
+        (function () {
+            const stepsContainer = document.getElementById('steps-container');
+            const stepsInput = document.getElementById('steps_json');
+            const addStepBtn = document.getElementById('add-step');
+            const form = document.getElementById('create-template-form');
+
+            if (!stepsContainer || !stepsInput || !addStepBtn || !form) {
+                return;
+            }
+
+            const executionOptions = [
+                { value: 'sequential', label: 'Sequencial' },
+                { value: 'parallel', label: 'Paralelo' },
+            ];
+
+            function serializeSteps() {
+                const rows = stepsContainer.querySelectorAll('.step-row');
+                const steps = [];
+                rows.forEach((row, index) => {
+                    const role = row.querySelector('[data-field="role"]').value.trim().toLowerCase();
+                    const action = row.querySelector('[data-field="action"]').value.trim().toLowerCase() || 'sign';
+                    const execution = row.querySelector('[data-field="execution"]').value;
+                    const deadlineRaw = row.querySelector('[data-field="deadline"]').value.trim();
+                    const channel = row.querySelector('[data-field="channel"]').value;
+                    const deadline = deadlineRaw ? parseInt(deadlineRaw, 10) : null;
+                    steps.push({
+                        order: index + 1,
+                        role,
+                        action,
+                        execution,
+                        deadline_hours: deadline,
+                        notification_channel: channel,
+                    });
+                });
+                stepsInput.value = JSON.stringify(steps);
+            }
+
+            function addRow(data) {
+                const row = document.createElement('div');
+                row.className = 'step-row';
+                row.style.marginBottom = '12px';
+                row.innerHTML = `
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+                        <div style="flex:1 1 120px;">
+                            <label>Papel</label>
+                            <input data-field="role" placeholder="signer" value="${data?.role || 'signer'}" required />
+                        </div>
+                        <div style="flex:1 1 120px;">
+                            <label>Ação</label>
+                            <input data-field="action" placeholder="sign" value="${data?.action || 'sign'}" />
+                        </div>
+                        <div style="flex:1 1 140px;">
+                            <label>Execução</label>
+                            <select data-field="execution">
+                                ${executionOptions.map(opt => `<option value="${opt.value}" ${data?.execution === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div style="flex:1 1 140px;">
+                            <label>Deadline (horas)</label>
+                            <input data-field="deadline" type="number" min="1" max="2160" value="${data?.deadline_hours ?? ''}" />
+                        </div>
+                        <div style="flex:1 1 140px;">
+                            <label>Canal</label>
+                            <select data-field="channel">
+                                <option value="email" ${!data || data.notification_channel === 'email' ? 'selected' : ''}>Email</option>
+                                <option value="sms" ${(data && data.notification_channel === 'sms') ? 'selected' : ''}>SMS</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn-danger" data-action="remove">Remover</button>
+                    </div>
+                `;
+                stepsContainer.appendChild(row);
+            }
+
+            stepsContainer.addEventListener('click', (event) => {
+                if (event.target.matches('[data-action="remove"]')) {
+                    const row = event.target.closest('.step-row');
+                    if (row) {
+                        row.remove();
+                        serializeSteps();
+                    }
+                }
+            });
+
+            addStepBtn.addEventListener('click', () => {
+                addRow();
+                serializeSteps();
+            });
+
+            form.addEventListener('submit', () => {
+                if (!stepsContainer.querySelector('.step-row')) {
+                    addRow();
+                }
+                serializeSteps();
+            });
+
+            try {
+                const initial = JSON.parse(stepsInput.value || '[]');
+                if (initial.length) {
+                    initial.forEach(step => addRow(step));
+                } else {
+                    addRow();
+                }
+            } catch (err) {
+                console.warn('Could not parse initial steps JSON.');
+                addRow();
+            }
+        })();
+    </script>
+</body>
+</html>

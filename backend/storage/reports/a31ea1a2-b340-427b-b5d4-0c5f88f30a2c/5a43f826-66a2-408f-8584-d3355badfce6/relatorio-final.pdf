@@ -1,0 +1,155 @@
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document http://www.reportlab.com
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /ZapfDingbats /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 9 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/Contents 10 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+6 0 obj
+<<
+/PageMode /UseNone /Pages 8 0 R /Type /Catalog
+>>
+endobj
+7 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20251027080907-03'00') /Creator (ReportLab PDF Library - www.reportlab.com) /Keywords () /ModDate (D:20251027080907-03'00') /Producer (ReportLab PDF Library - www.reportlab.com) 
+  /Subject (unspecified) /Title (\376\377\000R\000e\000l\000a\000t\377\375\000r\000i\000o\000 \000C\000o\000n\000t\000r\000a\000t\000o\000 \000C\000e\000r\000t) /Trapped /False
+>>
+endobj
+8 0 obj
+<<
+/Count 2 /Kids [ 4 0 R 5 0 R ] /Type /Pages
+>>
+endobj
+9 0 obj
+<<
+/Length 3805
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (Relat) Tj /F2 12 Tf 14.4 TL (n) Tj /F1 12 Tf 14.4 TL (rio de auditoria - Documento Contrato Cert) Tj T* ET
+BT 1 0 0 1 72 706 Tm (Documento ID: 5a43f826-66a2-408f-8584-d3355badfce6) Tj T* ET
+BT 1 0 0 1 72 692 Tm (Status final: completed) Tj T* ET
+BT 1 0 0 1 72 678 Tm (Workflow ID: 39c2ae10-759c-4ad8-923f-bdd0e893a8eb) Tj T* ET
+BT 1 0 0 1 72 664 Tm (Gerado em: 27/10/2025 11:09:07 UTC) Tj T* ET
+BT 1 0 0 1 72 650 Tm  T* ET
+BT 1 0 0 1 72 636 Tm (Participantes:) Tj T* ET
+BT 1 0 0 1 72 622 Tm (- Participante Certificado \(signer\)) Tj T* ET
+BT 1 0 0 1 72 608 Tm (  Email: a6ab106b_public-cert@example.com | Telefone: -) Tj T* ET
+BT 1 0 0 1 72 594 Tm (  Status: pending) Tj T* ET
+BT 1 0 0 1 72 580 Tm  T* ET
+BT 1 0 0 1 72 566 Tm (Solicita) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (es:) Tj T* ET
+BT 1 0 0 1 72 552 Tm (- Solicita) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (o 00645734-da64-4249-8111-cacf12647b32) Tj T* ET
+BT 1 0 0 1 72 538 Tm (  Parte: Participante Certificado) Tj T* ET
+BT 1 0 0 1 72 524 Tm (  Status: signed) Tj T* ET
+BT 1 0 0 1 72 510 Tm (  Canal: email) Tj T* ET
+BT 1 0 0 1 72 496 Tm (  Emitido em: 27/10/2025 11:09:01 UTC) Tj T* ET
+BT 1 0 0 1 72 482 Tm (    - A) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (o: assinatura) Tj T* ET
+BT 1 0 0 1 72 468 Tm (      Data: 27/10/2025 11:09:05 UTC if signature.signed_at else '-') Tj T* ET
+BT 1 0 0 1 72 454 Tm (      IP: testclient) Tj T* ET
+BT 1 0 0 1 72 440 Tm (      Dados fornecidos pelo signat\341rio:) Tj T* ET
+BT 1 0 0 1 72 426 Tm (      Modalidades utilizadas: nome digitado) Tj T* ET
+BT 1 0 0 1 72 412 Tm (      Nome digitado: Participante Certificado) Tj T* ET
+BT 1 0 0 1 72 398 Tm (      Hash do nome \(SHA-256\): 5c8f3f37f0916d2984204b85a7dd484083db001bb50cb9c43dc03bcfb62b5ef1) Tj T* ET
+BT 1 0 0 1 72 384 Tm (      Consentimento LGPD: concedido) Tj T* ET
+BT 1 0 0 1 72 370 Tm (      Registrado em: 27/10/2025 11:09:05 UTC) Tj T* ET
+BT 1 0 0 1 72 356 Tm  T* ET
+BT 1 0 0 1 72 342 Tm (Eventos de auditoria:) Tj T* ET
+BT 1 0 0 1 72 328 Tm (- 27/10/2025 11:09:01 UTC - document_created) Tj T* ET
+BT 1 0 0 1 72 314 Tm (  Detalhes: {"document": "Contrato Cert", "area_id": "0a0dce45-0395-441b-b289-e07a5369a281"}) Tj T* ET
+BT 1 0 0 1 72 300 Tm  T* ET
+BT 1 0 0 1 72 286 Tm (- 27/10/2025 11:09:01 UTC - document_version_uploaded) Tj T* ET
+BT 1 0 0 1 72 272 Tm (  Detalhes: {"version_id": "20a2a9cf-8029-4eb6-8f5b-d0782daa6821", "file": "contrato.pdf"}) Tj T* ET
+BT 1 0 0 1 72 258 Tm  T* ET
+BT 1 0 0 1 72 244 Tm (- 27/10/2025 11:09:01 UTC - document_party_added) Tj T* ET
+BT 1 0 0 1 72 230 Tm (  Detalhes: {"party_id": "66ddd655-7c45-423c-a4ae-d34755e5bb57", "role": "signer"}) Tj T* ET
+BT 1 0 0 1 72 216 Tm  T* ET
+BT 1 0 0 1 72 202 Tm (- 27/10/2025 11:09:01 UTC - notification_attempt) Tj T* ET
+BT 1 0 0 1 72 188 Tm (  Detalhes: {"request_id": "00645734-da64-4249-8111-cacf12647b32", "party_email": "a6ab106b_public-cert@example.com", "channel": "email", "deadline_at": "2025-10-28T11:09:01.425717"}) Tj T* ET
+BT 1 0 0 1 72 174 Tm  T* ET
+BT 1 0 0 1 72 160 Tm (- 27/10/2025 11:09:05 UTC - notification_sent) Tj T* ET
+BT 1 0 0 1 72 146 Tm (  Detalhes: {"request_id": "00645734-da64-4249-8111-cacf12647b32", "party_email": "a6ab106b_public-cert@example.com", "channel": "email", "action_link": "http://localhost:8001/public/signatures/dDU3FTgJn9DJ7rh6TzLtI_7n6YsJOSv0yPUXnoXyepU/page", "deadline_at": "2025-10-28T11:09:01.425717"}) Tj T* ET
+BT 1 0 0 1 72 132 Tm  T* ET
+BT 1 0 0 1 72 118 Tm (- 27/10/2025 11:09:05 UTC - workflow_dispatched) Tj T* ET
+BT 1 0 0 1 72 104 Tm (  Detalhes: {"workflow_id": "39c2ae10-759c-4ad8-923f-bdd0e893a8eb"}) Tj T* ET
+BT 1 0 0 1 72 90 Tm  T* ET
+BT 1 0 0 1 72 76 Tm (- 27/10/2025 11:09:05 UTC - signature_evidence_captured) Tj T* ET
+ 
+endstream
+endobj
+10 0 obj
+<<
+/Length 2406
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (  Detalhes: {"signature_id": "54f18d9e-6719-4340-bce5-39b239f5bef3", "request_id": "00645734-da64-4249-8111-cacf12647b32", "options": {"typed_name": true, "signature_image": false, "signature_draw": false, "certificate": {"subject": "CN=Participante Certificado", "issuer": "Autoridade Virtual", "serial": "123456789", "thumbprint": "ABCDEF123"}, "signature_protocol": "PROTO-999", "signature_type_label": "ICP-Brasil", "signature_authentication": "Certificado digital", "signed_pdf_artifact_id": "4c6a971d-5ce5-4d1d-83dd-91166e7b2a51", "signed_pdf_sha256": "8bade592bd45b510388150f6bb09472c3f9d38bc23c57a149a782241dbef0cbe"}, "typed_name": "Participante Certificado", "typed_name_hash": "5c8f3f37f0916d2984204b85a7dd484083db001bb50cb9c43dc03bcfb62b5ef1", "certificate_subject": "CN=Participante Certificado", "certificate_issuer": "Autoridade Virtual", "certificate_serial": "123456789", "certificate_thumbprint": "ABCDEF123", "signature_protocol": "PROTO-999", "signature_type_label": "ICP-Brasil", "signature_authentication": "Certificado digital", "signed_pdf_artifact_id": "4c6a971d-5ce5-4d1d-83dd-91166e7b2a51", "signed_pdf_sha256": "8bade592bd45b510388150f6bb09472c3f9d38bc23c57a149a782241dbef0cbe", "signed_pdf_filename": "assinatura-final.pdf", "signed_pdf_size_bytes": 18, "signed_pdf_mime_type": "application/pdf", "signed_pdf_storage_path": "C:\\\\nacionalSign\\\\backend\\\\storage\\\\signatures\\\\a31ea1a2-b340-427b-b5d4-0c5f88f30a2c\\\\5a43f826-66a2-408f-8584-d3355badfce6\\\\assinatura-final.pdf", "consent_given_at": "2025-10-27T11:09:05.646481"}) Tj T* ET
+BT 1 0 0 1 72 706 Tm  T* ET
+BT 1 0 0 1 72 692 Tm (- 27/10/2025 11:09:07 UTC - document_signed) Tj T* ET
+BT 1 0 0 1 72 678 Tm (  Detalhes: {"version_id": "a15bc95c-0f84-430b-ba17-fc86e7f6e115", "sha256": "d7dd0115be8b79ae057b3f6ca0fcee578085ba6919dcb70e8643a2aff537d9b5", "authority": "https://tsa.seutimestamp.com/api/v1/timestamp", "issued_at": "2025-10-27T11:09:05.691448+00:00"}) Tj T* ET
+BT 1 0 0 1 72 664 Tm  T* ET
+BT 1 0 0 1 72 650 Tm (- 27/10/2025 11:09:07 UTC - icp_warning) Tj T* ET
+BT 1 0 0 1 72 636 Tm (  Detalhes: {"warning": "signer-missing"}) Tj T* ET
+BT 1 0 0 1 72 622 Tm  T* ET
+BT 1 0 0 1 72 608 Tm (- 27/10/2025 11:09:07 UTC - icp_warning) Tj T* ET
+BT 1 0 0 1 72 594 Tm (  Detalhes: {"warning": "pypdf-missing"}) Tj T* ET
+BT 1 0 0 1 72 580 Tm  T* ET
+ 
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000073 00000 n 
+0000000114 00000 n 
+0000000221 00000 n 
+0000000304 00000 n 
+0000000497 00000 n 
+0000000691 00000 n 
+0000000759 00000 n 
+0000001173 00000 n 
+0000001238 00000 n 
+0000005094 00000 n 
+trailer
+<<
+/ID 
+[<eb05f9038bfee4fdb969d52b341be317><eb05f9038bfee4fdb969d52b341be317>]
+% ReportLab generated PDF document -- digest (http://www.reportlab.com)
+
+/Info 7 0 R
+/Root 6 0 R
+/Size 11
+>>
+startxref
+7552
+%%EOF

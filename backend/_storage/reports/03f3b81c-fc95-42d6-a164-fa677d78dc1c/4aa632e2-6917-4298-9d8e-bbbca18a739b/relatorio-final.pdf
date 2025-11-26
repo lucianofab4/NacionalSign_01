@@ -1,0 +1,119 @@
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document http://www.reportlab.com
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /ZapfDingbats /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 8 0 R /MediaBox [ 0 0 612 792 ] /Parent 7 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/PageMode /UseNone /Pages 7 0 R /Type /Catalog
+>>
+endobj
+6 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20251123174108-03'00') /Creator (ReportLab PDF Library - www.reportlab.com) /Keywords () /ModDate (D:20251123174108-03'00') /Producer (ReportLab PDF Library - www.reportlab.com) 
+  /Subject (unspecified) /Title (\376\377\000R\000e\000l\000a\000t\377\375\000r\000i\000o\000 \000C\000o\000n\000t\000r\000a\000t\000o) /Trapped /False
+>>
+endobj
+7 0 obj
+<<
+/Count 1 /Kids [ 4 0 R ] /Type /Pages
+>>
+endobj
+8 0 obj
+<<
+/Length 3516
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (Relat) Tj /F2 12 Tf 14.4 TL (n) Tj /F1 12 Tf 14.4 TL (rio de auditoria - Documento Contrato) Tj T* ET
+BT 1 0 0 1 72 706 Tm (Documento ID: 4aa632e2-6917-4298-9d8e-bbbca18a739b) Tj T* ET
+BT 1 0 0 1 72 692 Tm (Status final: completed) Tj T* ET
+BT 1 0 0 1 72 678 Tm (Workflow ID: 5ca6fa12-4c16-4e16-bbf4-ce771538b567) Tj T* ET
+BT 1 0 0 1 72 664 Tm (Gerado em: 23/11/2025 20:41:08 UTC) Tj T* ET
+BT 1 0 0 1 72 650 Tm  T* ET
+BT 1 0 0 1 72 636 Tm (Participantes:) Tj T* ET
+BT 1 0 0 1 72 622 Tm (- Admin Teste \(signer\)) Tj T* ET
+BT 1 0 0 1 72 608 Tm (  Email: e08a7fea_workflow@example.com | Telefone: -) Tj T* ET
+BT 1 0 0 1 72 594 Tm (  Status: pending) Tj T* ET
+BT 1 0 0 1 72 580 Tm  T* ET
+BT 1 0 0 1 72 566 Tm (Solicita) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (es:) Tj T* ET
+BT 1 0 0 1 72 552 Tm (- Solicita) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (o 6dff10ef-9f72-4741-9906-6fa94f3d5793) Tj T* ET
+BT 1 0 0 1 72 538 Tm (  Parte: Admin Teste) Tj T* ET
+BT 1 0 0 1 72 524 Tm (  Status: signed) Tj T* ET
+BT 1 0 0 1 72 510 Tm (  Canal: email) Tj T* ET
+BT 1 0 0 1 72 496 Tm (  Emitido em: 23/11/2025 20:41:05 UTC) Tj T* ET
+BT 1 0 0 1 72 482 Tm (    - A) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (o: assinatura) Tj T* ET
+BT 1 0 0 1 72 468 Tm (      Data: 23/11/2025 20:41:08 UTC if signature.signed_at else '-') Tj T* ET
+BT 1 0 0 1 72 454 Tm (      IP: testclient) Tj T* ET
+BT 1 0 0 1 72 440 Tm  T* ET
+BT 1 0 0 1 72 426 Tm (Eventos de auditoria:) Tj T* ET
+BT 1 0 0 1 72 412 Tm (- 23/11/2025 20:41:05 UTC - document_created) Tj T* ET
+BT 1 0 0 1 72 398 Tm (  Detalhes: {"document": "Contrato", "area_id": "76eb9430-1484-498b-bc24-76f34437e4d8"}) Tj T* ET
+BT 1 0 0 1 72 384 Tm  T* ET
+BT 1 0 0 1 72 370 Tm (- 23/11/2025 20:41:05 UTC - document_version_uploaded) Tj T* ET
+BT 1 0 0 1 72 356 Tm (  Detalhes: {"version_id": "d8cee94c-9355-4ac3-9c0c-6cc6306d1e5d", "file": "contrato.pdf"}) Tj T* ET
+BT 1 0 0 1 72 342 Tm  T* ET
+BT 1 0 0 1 72 328 Tm (- 23/11/2025 20:41:05 UTC - document_party_added) Tj T* ET
+BT 1 0 0 1 72 314 Tm (  Detalhes: {"party_id": "8f110047-2b38-4d4b-b0d2-f7ed792ab15f", "role": "signer"}) Tj T* ET
+BT 1 0 0 1 72 300 Tm  T* ET
+BT 1 0 0 1 72 286 Tm (- 23/11/2025 20:41:05 UTC - notification_attempt) Tj T* ET
+BT 1 0 0 1 72 272 Tm (  Detalhes: {"request_id": "6dff10ef-9f72-4741-9906-6fa94f3d5793", "party_email": "e08a7fea_workflow@example.com", "channel": "email", "deadline_at": "2025-12-23T20:41:05.534129"}) Tj T* ET
+BT 1 0 0 1 72 258 Tm  T* ET
+BT 1 0 0 1 72 244 Tm (- 23/11/2025 20:41:08 UTC - notification_sent) Tj T* ET
+BT 1 0 0 1 72 230 Tm (  Detalhes: {"request_id": "6dff10ef-9f72-4741-9906-6fa94f3d5793", "party_email": "e08a7fea_workflow@example.com", "channel": "email", "action_link": "http://localhost:5173/public/sign/EjX7LY-e6biW58IR56g7yyam7PxcLPsIa_hzHypk9HY", "deadline_at": "2025-12-23T20:41:05.534129"}) Tj T* ET
+BT 1 0 0 1 72 216 Tm  T* ET
+BT 1 0 0 1 72 202 Tm (- 23/11/2025 20:41:08 UTC - workflow_dispatched) Tj T* ET
+BT 1 0 0 1 72 188 Tm (  Detalhes: {"workflow_id": "5ca6fa12-4c16-4e16-bbf4-ce771538b567"}) Tj T* ET
+BT 1 0 0 1 72 174 Tm  T* ET
+BT 1 0 0 1 72 160 Tm (- 23/11/2025 20:41:08 UTC - signature_evidence_captured) Tj T* ET
+BT 1 0 0 1 72 146 Tm (  Detalhes: {"signature_id": "0f7e59d2-0cca-46d2-9b9c-373c0ba8039f", "request_id": "6dff10ef-9f72-4741-9906-6fa94f3d5793", "options": {"typed_name": false, "signature_image": false, "signature_draw": false}}) Tj T* ET
+BT 1 0 0 1 72 132 Tm  T* ET
+ 
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000073 00000 n 
+0000000114 00000 n 
+0000000221 00000 n 
+0000000304 00000 n 
+0000000497 00000 n 
+0000000565 00000 n 
+0000000954 00000 n 
+0000001013 00000 n 
+trailer
+<<
+/ID 
+[<c0f67b2594c51ad434a2a43b6c44d015><c0f67b2594c51ad434a2a43b6c44d015>]
+% ReportLab generated PDF document -- digest (http://www.reportlab.com)
+
+/Info 6 0 R
+/Root 5 0 R
+/Size 9
+>>
+startxref
+4580
+%%EOF

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <title>Documento aguardando sua assinatura</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: #0f172a;
+            background: #f4f6fb;
+            margin: 0;
+            padding: 32px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.15);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0f172a, #1d4ed8);
+            color: #f8fafc;
+            padding: 28px;
+        }
+        .header h1 {
+            margin: 0 0 6px;
+            font-size: 22px;
+        }
+        .header p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        .content {
+            padding: 28px;
+        }
+        .summary {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 20px;
+        }
+        .summary dl {
+            margin: 0;
+        }
+        .summary dt {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: #64748b;
+            margin-top: 14px;
+        }
+        .summary dt:first-child {
+            margin-top: 0;
+        }
+        .summary dd {
+            margin: 4px 0 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .button {
+            display: inline-block;
+            background: #2563eb;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 14px 28px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 15px;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.18);
+        }
+        .button:hover {
+            background: #1e40af;
+        }
+        .footer {
+            padding: 20px 28px 28px;
+            font-size: 12px;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+        }
+        .footer p {
+            margin: 4px 0;
+        }
+        a {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Documento aguardando sua assinatura</h1>
+            <p>OlÃ¡ {{ signer_name }}, concluindo esta etapa o processo segue automaticamente.</p>
+        </div>
+        <div class="content">
+            <div class="summary">
+                <dl>
+                    <dt>Documento</dt>
+                    <dd>{{ document_name }}</dd>
+                    {% if document_status %}
+                        <dt>Status atual</dt>
+                        <dd>{{ document_status }}</dd>
+                    {% endif %}
+                    {% if deadline_display %}
+                        <dt>Prazo para assinatura</dt>
+                        <dd>{{ deadline_display }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+            {% if action_link %}
+                <p>Para revisar e assinar o documento, utilize o botÃ£o abaixo.</p>
+                <p style="margin: 24px 0;">
+                    <a class="button" href="{{ action_link }}" target="_blank" rel="noopener">Assinar agora</a>
+                </p>
+                <p style="font-size: 13px; color: #475569;">
+                    Se o botÃ£o nÃ£o abrir, copie e cole o link no navegador:<br>
+                    <a href="{{ action_link }}" target="_blank" rel="noopener">{{ action_link }}</a>
+                </p>
+            
+                {% if agent_download_url %}
+                    <p style="font-size: 13px; color: #475569; margin-top: 20px;">
+                        Vai assinar de um computador que ainda não tem o agente instalado?
+                        <a href="{{ agent_download_url }}" target="_blank" rel="noopener">Baixe e instale o agente de assinatura</a>
+                        antes de prosseguir.
+                    </p>
+                {% endif %}
+{% else %}
+                <p>Entre em contato com o solicitante para obter o link de assinatura.</p>
+            {% endif %}
+        </div>
+        <div class="footer">
+            <p>Este e-mail foi enviado automaticamente pela NacionalSign.</p>
+            <p>Se vocÃª nÃ£o esperava por esta solicitaÃ§Ã£o, informe o remetente.</p>
+        </div>
+    </div>
+</body>
+</html>

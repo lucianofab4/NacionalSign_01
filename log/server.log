@@ -1,0 +1,8 @@
+2025-10-25 06:30:02,969 INFO nacionalsign NacionalSign API inicializada
+2025-10-25 06:30:26,876 INFO nacionalsign NacionalSign API inicializada
+2025-10-25 06:30:27,172 INFO httpx HTTP Request: GET http://testserver/api/v1/dashboard/metrics "HTTP/1.1 401 Unauthorized"
+2025-11-12 13:34:33,954 INFO nacionalsign NacionalSign API inicializada
+2025-11-12 13:34:34,254 WARNING nacionalsign DiretÃ³rio do frontend nÃ£o encontrado: C:\frontend\dist
+2025-11-12 13:34:55,624 INFO nacionalsign NacionalSign API inicializada
+2025-11-12 13:34:55,885 WARNING nacionalsign DiretÃ³rio do frontend nÃ£o encontrado: C:\frontend\dist
+2025-11-12 13:54:45,976 INFO nacionalsign NacionalSign API inicializada

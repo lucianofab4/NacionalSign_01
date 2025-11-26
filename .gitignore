@@ -1,0 +1,27 @@
+# Pastas e arquivos que não devem ir para o GitHub
+
+# Arquivos gigantes / backups / instaladores
+*.zip
+*.exe
+pgsql/
+pgAdmin*/
+postgresql-*/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+
+# Ambiente
+.env
+.env.local
+
+# IDEs / editor
+.vscode/
+.idea/

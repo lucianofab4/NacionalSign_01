@@ -1,0 +1,77 @@
+INSTRUÇÕES PASSO A PASSO — NacionalSign_v1
+Atualizado em: 2025-11-08 02:17:29
+
+1) OBJETIVO
+Guia completo: substituição de arquivos, execução de SQL (pgAdmin4), configuração de variáveis,
+subir backend (8000) + frontend (5173) e validar o fluxo (eletrônico/digital), ZIP (PDF + .p7s),
+edição/substituição de participantes, arquivar/excluir e marcação de assinatura no PDF.
+
+2) PRÉ-REQUISITOS
+- Python 3.10+, Node 18+, npm, PostgreSQL + pgAdmin4.
+- Gmail com senha de app para envio de e-mails.
+
+3) BACKUP DO PROJETO
+- Copie a pasta do projeto para C:\backup\seu_projeto_YYYYMMDD\ ou faça commit no Git.
+
+4) ESTRUTURA DO PACOTE (após substituição)
+backend/app/api/routes/{documents.py, flows.py, public_signatures.py, downloads.py, users.py, clients.py}
+backend/app/services/{signature_fields.py, digital_signatures.py, store.py}
+backend/app/main.py (+ models/ e schemas/)
+frontend/src/{App.tsx, api.ts}
+frontend/src/components/{LoginForm.tsx, LogsDisclosure.tsx, SignatureFieldMapper.tsx}
+frontend/src/pages/{DocumentsPage.tsx, DocumentDetailPage.tsx, PublicSignaturePage.tsx, UsersPage.tsx, CustomersPage.tsx}
+sql/ajustes_pgadmin.sql
+docs/INSTRUCOES_PASSO_A_PASSO.txt
+
+5) SUBSTITUIÇÃO DE ARQUIVOS
+- Feche servidores.
+- Copie backend/, frontend/, sql/ e docs/ para a RAIZ do projeto e substitua.
+- Confirme caminhos: backend/app/... e frontend/src/...
+
+6) VARIÁVEIS DE AMBIENTE (BACKEND)
+PUBLIC_APP_URL=http://localhost:5173
+SMTP_SENDER_EMAIL=documentoseltronico@gmail.com
+SMTP_APP_PASSWORD=muop viro wjyf pwqo
+DATABASE_URL=postgresql+psycopg2://<usuario>:<senha>@localhost:5432/nacionalsign
+
+7) SQL NO PGADMIN4
+- Abra pgAdmin4 → banco nacionalsign → Query Tool → rode sql/ajustes_pgadmin.sql
+- Cria/ajusta: digital_signatures, signature_fields, is_archived, deleted_at, final_hash, índices.
+
+8) DEPENDÊNCIAS
+Backend:
+  python -m venv venv
+  .\venv\Scripts\Activate.ps1   (Windows)
+  pip install fastapi uvicorn[standard] pydantic python-multipart python-dotenv psycopg2-binary
+Frontend:
+  cd frontend && npm install
+
+9) SUBIR DEV
+Backend: uvicorn backend.app.main:application --reload --port 8000
+Frontend: cd frontend && npm run dev
+Acesso: SPA http://localhost:5173  |  API docs http://localhost:8000/docs
+
+10) CHECKLIST DE VALIDAÇÃO
+- Login ok; "Esqueci minha senha" envia e-mail.
+- Envio de documento com participantes (eletrônico/digital).
+- Marcação visual (SignatureFieldMapper): definir campos (page, x, y, w, h) por participante.
+- Fluxo sequencial/paralelo respeitado.
+- Editar/substituir participante permitido apenas em status "pending".
+- Assinatura pública: /public/sign/:token (bloqueia eletrônica se exigir digital).
+- Download final:
+  - Se houver ao menos 1 assinatura DIGITAL → ZIP (PDF + .p7s).
+  - 100% eletrônico → PDF com protocolo.
+- Arquivar/Excluir (confirmar “Você já baixou?” + digitar CONFIRMAR).
+- Logs recolhíveis exibindo todas as ações.
+
+11) PRODUÇÃO (OPCIONAL)
+- Front: npm run build e servir dist/ com fallback para index.html (rotas SPA).
+- Back: Uvicorn/Gunicorn em serviço; CORS e envs configurados.
+
+12) FAQ RÁPIDO
+- Link público "Not Found": verifique redirect backend /public/sign/{token} → PUBLIC_APP_URL/public/sign/{token}
+- ZIP não inclui .p7s: verifique registros em digital_signatures para o documento.
+- E-mails não chegam: revise SMTP_* e Senha de App; verifique bloqueios do provedor.
+- Não edita participante: só se status = pending.
+
+FIM

@@ -1,0 +1,149 @@
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document http://www.reportlab.com
+1 0 obj
+<<
+/F1 2 0 R /F2 3 0 R
+>>
+endobj
+2 0 obj
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
+endobj
+3 0 obj
+<<
+/BaseFont /ZapfDingbats /Name /F2 /Subtype /Type1 /Type /Font
+>>
+endobj
+4 0 obj
+<<
+/Contents 9 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+5 0 obj
+<<
+/Contents 10 0 R /MediaBox [ 0 0 612 792 ] /Parent 8 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
+endobj
+6 0 obj
+<<
+/PageMode /UseNone /Pages 8 0 R /Type /Catalog
+>>
+endobj
+7 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20251027081148-03'00') /Creator (ReportLab PDF Library - www.reportlab.com) /Keywords () /ModDate (D:20251027081148-03'00') /Producer (ReportLab PDF Library - www.reportlab.com) 
+  /Subject (unspecified) /Title (\376\377\000R\000e\000l\000a\000t\377\375\000r\000i\000o\000 \000C\000o\000n\000t\000r\000a\000t\000o) /Trapped /False
+>>
+endobj
+8 0 obj
+<<
+/Count 2 /Kids [ 4 0 R 5 0 R ] /Type /Pages
+>>
+endobj
+9 0 obj
+<<
+/Length 3989
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (Relat) Tj /F2 12 Tf 14.4 TL (n) Tj /F1 12 Tf 14.4 TL (rio de auditoria - Documento Contrato) Tj T* ET
+BT 1 0 0 1 72 706 Tm (Documento ID: 5a57ff92-8e2b-4ab0-8a3b-a81646656621) Tj T* ET
+BT 1 0 0 1 72 692 Tm (Status final: completed) Tj T* ET
+BT 1 0 0 1 72 678 Tm (Workflow ID: c01389e0-abb7-449f-93d0-129a4416f39f) Tj T* ET
+BT 1 0 0 1 72 664 Tm (Gerado em: 27/10/2025 11:11:48 UTC) Tj T* ET
+BT 1 0 0 1 72 650 Tm  T* ET
+BT 1 0 0 1 72 636 Tm (Participantes:) Tj T* ET
+BT 1 0 0 1 72 622 Tm (- Admin Teste \(signer\)) Tj T* ET
+BT 1 0 0 1 72 608 Tm (  Email: e8cc728f_workflow@example.com | Telefone: -) Tj T* ET
+BT 1 0 0 1 72 594 Tm (  Status: pending) Tj T* ET
+BT 1 0 0 1 72 580 Tm  T* ET
+BT 1 0 0 1 72 566 Tm (Solicita) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (es:) Tj T* ET
+BT 1 0 0 1 72 552 Tm (- Solicita) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (o 9c3e3573-3349-478b-a814-e9195dd7719a) Tj T* ET
+BT 1 0 0 1 72 538 Tm (  Parte: Admin Teste) Tj T* ET
+BT 1 0 0 1 72 524 Tm (  Status: signed) Tj T* ET
+BT 1 0 0 1 72 510 Tm (  Canal: email) Tj T* ET
+BT 1 0 0 1 72 496 Tm (  Emitido em: 27/10/2025 11:11:42 UTC) Tj T* ET
+BT 1 0 0 1 72 482 Tm (    - A) Tj /F2 12 Tf 14.4 TL (nn) Tj /F1 12 Tf 14.4 TL (o: assinatura) Tj T* ET
+BT 1 0 0 1 72 468 Tm (      Data: 27/10/2025 11:11:47 UTC if signature.signed_at else '-') Tj T* ET
+BT 1 0 0 1 72 454 Tm (      IP: testclient) Tj T* ET
+BT 1 0 0 1 72 440 Tm  T* ET
+BT 1 0 0 1 72 426 Tm (Eventos de auditoria:) Tj T* ET
+BT 1 0 0 1 72 412 Tm (- 27/10/2025 11:11:42 UTC - document_created) Tj T* ET
+BT 1 0 0 1 72 398 Tm (  Detalhes: {"document": "Contrato", "area_id": "6ccf5cb5-4284-46eb-8c76-1c1f50a8ec81"}) Tj T* ET
+BT 1 0 0 1 72 384 Tm  T* ET
+BT 1 0 0 1 72 370 Tm (- 27/10/2025 11:11:42 UTC - document_version_uploaded) Tj T* ET
+BT 1 0 0 1 72 356 Tm (  Detalhes: {"version_id": "477e765a-c2a8-4a53-8cf1-7632aba560cf", "file": "contrato.pdf"}) Tj T* ET
+BT 1 0 0 1 72 342 Tm  T* ET
+BT 1 0 0 1 72 328 Tm (- 27/10/2025 11:11:42 UTC - document_party_added) Tj T* ET
+BT 1 0 0 1 72 314 Tm (  Detalhes: {"party_id": "7edf34a3-ca9b-45b6-bdec-c2cc65d718c1", "role": "signer"}) Tj T* ET
+BT 1 0 0 1 72 300 Tm  T* ET
+BT 1 0 0 1 72 286 Tm (- 27/10/2025 11:11:42 UTC - notification_attempt) Tj T* ET
+BT 1 0 0 1 72 272 Tm (  Detalhes: {"request_id": "9c3e3573-3349-478b-a814-e9195dd7719a", "party_email": "e8cc728f_workflow@example.com", "channel": "email", "deadline_at": "2025-10-28T11:11:42.718627"}) Tj T* ET
+BT 1 0 0 1 72 258 Tm  T* ET
+BT 1 0 0 1 72 244 Tm (- 27/10/2025 11:11:47 UTC - notification_sent) Tj T* ET
+BT 1 0 0 1 72 230 Tm (  Detalhes: {"request_id": "9c3e3573-3349-478b-a814-e9195dd7719a", "party_email": "e8cc728f_workflow@example.com", "channel": "email", "action_link": "http://localhost:8001/public/signatures/aymvVmXKMGOr7u2PkBZG-Wk_eaJmU0Lhr-uH1KI4kE0/page", "deadline_at": "2025-10-28T11:11:42.718627"}) Tj T* ET
+BT 1 0 0 1 72 216 Tm  T* ET
+BT 1 0 0 1 72 202 Tm (- 27/10/2025 11:11:47 UTC - workflow_dispatched) Tj T* ET
+BT 1 0 0 1 72 188 Tm (  Detalhes: {"workflow_id": "c01389e0-abb7-449f-93d0-129a4416f39f"}) Tj T* ET
+BT 1 0 0 1 72 174 Tm  T* ET
+BT 1 0 0 1 72 160 Tm (- 27/10/2025 11:11:47 UTC - signature_evidence_captured) Tj T* ET
+BT 1 0 0 1 72 146 Tm (  Detalhes: {"signature_id": "fa867935-b470-421c-bf91-8248cfad04e8", "request_id": "9c3e3573-3349-478b-a814-e9195dd7719a", "options": {"typed_name": false, "signature_image": false, "signature_draw": false}}) Tj T* ET
+BT 1 0 0 1 72 132 Tm  T* ET
+BT 1 0 0 1 72 118 Tm (- 27/10/2025 11:11:48 UTC - document_signed) Tj T* ET
+BT 1 0 0 1 72 104 Tm (  Detalhes: {"version_id": "7149086b-e555-4fec-b3bd-c7a994d6e961", "sha256": "92359bb294288000958de4f1f20d5778681b14bfe2f0868104f79230942a6984", "authority": "https://tsa.seutimestamp.com/api/v1/timestamp", "issued_at": "2025-10-27T11:11:47.618493+00:00"}) Tj T* ET
+BT 1 0 0 1 72 90 Tm  T* ET
+BT 1 0 0 1 72 76 Tm (- 27/10/2025 11:11:48 UTC - icp_warning) Tj T* ET
+ 
+endstream
+endobj
+10 0 obj
+<<
+/Length 317
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (  Detalhes: {"warning": "signer-missing"}) Tj T* ET
+BT 1 0 0 1 72 706 Tm  T* ET
+BT 1 0 0 1 72 692 Tm (- 27/10/2025 11:11:48 UTC - icp_warning) Tj T* ET
+BT 1 0 0 1 72 678 Tm (  Detalhes: {"warning": "pypdf-missing"}) Tj T* ET
+BT 1 0 0 1 72 664 Tm  T* ET
+ 
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000073 00000 n 
+0000000114 00000 n 
+0000000221 00000 n 
+0000000304 00000 n 
+0000000497 00000 n 
+0000000691 00000 n 
+0000000759 00000 n 
+0000001148 00000 n 
+0000001213 00000 n 
+0000005253 00000 n 
+trailer
+<<
+/ID 
+[<85a86f3d949eb48688ef4c2d6714228c><85a86f3d949eb48688ef4c2d6714228c>]
+% ReportLab generated PDF document -- digest (http://www.reportlab.com)
+
+/Info 7 0 R
+/Root 6 0 R
+/Size 11
+>>
+startxref
+5621
+%%EOF

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <title>Verificação de Documento - {{ verification.name }}</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0 0 32px;
+            background: #f5f6fa;
+            color: #1f2933;
+        }
+        header {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 24px;
+        }
+        header h1 {
+            margin: 0 0 8px;
+            font-size: 24px;
+        }
+        main {
+            max-width: 960px;
+            margin: -32px auto 0;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+            padding: 32px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .info-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
+            background: #f8fafc;
+        }
+        .info-card h2 {
+            margin: 0 0 8px;
+            font-size: 16px;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .tag-success { background: #dcfce7; color: #166534; }
+        .tag-warning { background: #fef3c7; color: #92400e; }
+        .tag-danger { background: #fee2e2; color: #b91c1c; }
+        .tag-info { background: #e0f2fe; color: #0c4a6e; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 32px;
+        }
+        th, td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+        th {
+            background: #f1f5f9;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #475569;
+        }
+        footer {
+            text-align: center;
+            margin-top: 32px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .hash {
+            font-family: "Courier New", Courier, monospace;
+            word-break: break-all;
+            font-size: 13px;
+        }
+        .section-title {
+            font-size: 18px;
+            margin: 24px 0 12px;
+            color: #1f2937;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>{{ verification.name }}</h1>
+        <p>Documento público para conferência de autenticidade</p>
+    </header>
+    <main>
+        <div class="info-grid">
+            <div class="info-card">
+                <h2>Status</h2>
+                {% set status = verification.status.lower() %}
+                {% set status_class = 'tag-info' %}
+                {% if status == 'completed' %}
+                    {% set status_class = 'tag-success' %}
+                {% elif status == 'rejected' %}
+                    {% set status_class = 'tag-danger' %}
+                {% elif status in ['in_progress', 'in_review'] %}
+                    {% set status_class = 'tag-warning' %}
+                {% endif %}
+                <span class="tag {{ status_class }}">{{ verification.status | replace('_', ' ') | upper }}</span>
+            </div>
+            <div class="info-card">
+                <h2>Última atualização</h2>
+                {% if verification.updated_at %}
+                    {{ verification.updated_at.strftime('%d/%m/%Y %H:%M:%S UTC') }}
+                {% else %}
+                    Não informado
+                {% endif %}
+            </div>
+            <div class="info-card">
+                <h2>Versão / Hash</h2>
+                {% if verification.hash %}
+                    <div class="hash">{{ verification.hash }}</div>
+                {% else %}
+                    Hash ainda não gerado
+                {% endif %}
+                {% if verification.download_url %}
+                    <div style="margin-top: 12px;">
+                        <a href="{{ verification.download_url }}" style="text-decoration:none; font-weight:600; color:#0ea5e9;">⬇ Baixar documento</a>
+                        {% if verification.version_filename %}
+                            <div style="font-size:12px; color:#64748b; margin-top:4px;">
+                                {{ verification.version_filename }}{% if verification.version_size %} • {{ (verification.version_size / 1024)|round(1) }} KB{% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {% if verification.report_url %}
+                    <div style="margin-top: 12px;">
+                        <a href="{{ verification.report_url }}" style="text-decoration:none; font-weight:600; color:#15803d;">📄 Relatório final (PDF)</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <h2 class="section-title">Signatários</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Papel</th>
+                    <th>Ação</th>
+                    <th>Status</th>
+                    <th>Concluído em</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for signer in verification.signers %}
+                    {% set signer_status = signer.status.lower() %}
+                    {% set signer_class = 'tag-info' %}
+                    {% if signer_status == 'signed' %}
+                        {% set signer_class = 'tag-success' %}
+                    {% elif signer_status == 'refused' %}
+                        {% set signer_class = 'tag-danger' %}
+                    {% elif signer_status == 'sent' %}
+                        {% set signer_class = 'tag-warning' %}
+                    {% endif %}
+                    <tr>
+                        <td>{{ signer.full_name }}</td>
+                        <td>{{ signer.email }}</td>
+                        <td>{{ signer.role or '—' }}</td>
+                        <td>{{ signer.action | replace('_', ' ') }}</td>
+                        <td><span class="tag {{ signer_class }}">{{ signer.status | upper }}</span></td>
+                        <td>
+                            {% if signer.signed_at %}
+                                {{ signer.signed_at.strftime('%d/%m/%Y %H:%M:%S UTC') }}
+                            {% elif signer.completed_at %}
+                                {{ signer.completed_at.strftime('%d/%m/%Y %H:%M:%S UTC') }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if signer.reason %}
+                        <tr>
+                            <td colspan="6">Motivo: {{ signer.reason }}</td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2 class="section-title">Workflows</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Iniciado</th>
+                    <th>Concluído</th>
+                    <th>Etapas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for wf in verification.workflows %}
+                    {% set wf_status = wf.status.lower() %}
+                    {% set wf_class = 'tag-info' %}
+                    {% if wf_status == 'completed' %}
+                        {% set wf_class = 'tag-success' %}
+                    {% elif wf_status == 'rejected' %}
+                        {% set wf_class = 'tag-danger' %}
+                    {% elif wf_status in ['in_progress', 'draft'] %}
+                        {% set wf_class = 'tag-warning' %}
+                    {% endif %}
+                    <tr>
+                        <td>{{ wf.workflow_id }}</td>
+                        <td><span class="tag {{ wf_class }}">{{ wf.status | upper }}</span></td>
+                        <td>
+                            {% if wf.started_at %}
+                                {{ wf.started_at.strftime('%d/%m/%Y %H:%M:%S UTC') }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if wf.completed_at %}
+                                {{ wf.completed_at.strftime('%d/%m/%Y %H:%M:%S UTC') }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>{{ wf.steps_completed }} / {{ wf.steps_total }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <footer>
+            Documento fornecido pela NacionalSign • Código {{ verification.document_id }}
+        </footer>
+    </main>
+</body>
+</html>

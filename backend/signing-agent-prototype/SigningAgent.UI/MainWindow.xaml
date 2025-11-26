@@ -1,0 +1,52 @@
+﻿<Window x:Class="SigningAgent.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Agente de Assinatura"
+        Width="900"
+        Height="500"
+        MinWidth="720"
+        MinHeight="420">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Certificados disponíveis"
+                   FontSize="18"
+                   FontWeight="SemiBold" />
+
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Margin="0,12,0,12">
+            <Button Content="Atualizar lista"
+                    Width="140"
+                    Margin="0,0,12,0"
+                    Click="RefreshClick" />
+            <Button Content="Definir como padrão"
+                    Width="180"
+                    Click="SetDefaultClick" />
+        </StackPanel>
+
+        <ListView Grid.Row="2"
+                  ItemsSource="{Binding Certificates}"
+                  SelectedItem="{Binding SelectedCertificate, Mode=TwoWay}"
+                  Margin="0,0,0,12">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Assunto" DisplayMemberBinding="{Binding Subject}" Width="240" />
+                    <GridViewColumn Header="Emissor" DisplayMemberBinding="{Binding Issuer}" Width="220" />
+                    <GridViewColumn Header="Número de Série" DisplayMemberBinding="{Binding SerialNumber}" Width="180" />
+                    <GridViewColumn Header="Válido até" DisplayMemberBinding="{Binding NotAfter}" Width="140" />
+                    <GridViewColumn Header="Thumbprint" DisplayMemberBinding="{Binding Thumbprint}" Width="240" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <TextBlock Grid.Row="3"
+                   Text="{Binding AgentStatus}"
+                   FontStyle="Italic" />
+    </Grid>
+</Window>
