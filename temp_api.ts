@@ -1,5 +1,5 @@
-import axios from "axios";
-import { resolveApiBaseUrl } from "./utils/env";
+import axios from 'axios';
+import { resolveApiBaseUrl } from './utils/env';
 
 type Maybe<T> = T | null | undefined;
 
@@ -9,7 +9,6 @@ const isMock = String(mockFlag ?? '').toLowerCase() === '1' || String(mockFlag ?
 
 export const api = axios.create({
   baseURL: apiBase,
-  withCredentials: false,
 });
 
 let authToken: string | null = null;
