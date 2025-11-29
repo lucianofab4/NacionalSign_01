@@ -63,7 +63,11 @@ def create_app() -> FastAPI:
         if normalized and normalized not in origins:
             origins.append(normalized)
     if not origins:
-        origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+        origins = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://nacionalsign-01-yll1.onrender.com",
+        ]
         logger.warning("CORS origins não configurados; aplicando padrão %s", origins)
 
     logger.info(f"CORS configurado com origins: {origins}")
