@@ -10,6 +10,7 @@ import DocumentManagerPage from './pages/DocumentManagerPage';
 import CustomersPage from './pages/CustomersPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
+import PublicSignaturePage from './pages/PublicSignaturePage';
 
 import LoginForm from './components/LoginForm';
 import loginBackground from './assets/imagem_login.png';
@@ -438,6 +439,11 @@ function App() {
         );
     }
   };
+
+  const publicSignMatch = matchPath("/public/sign/:token", normalizedPathname);
+  if (publicSignMatch) {
+    return <PublicSignaturePage />;
+  }
 
   if (!token) {
     return (
