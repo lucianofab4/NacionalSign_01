@@ -243,8 +243,7 @@ class NotificationService:
                 ]
             )
         lines.extend(["", "Equipe NacionalSign"])
-        return "
-".join(lines)
+        return "\n".join(lines)
 
 
 
@@ -519,8 +518,7 @@ class NotificationService:
             },
         )
         text_body = (
-            f"Documento '{document.name}' foi finalizado.
-"
+            f"Documento '{document.name}' foi finalizado.\n"
             "Os anexos desta mensagem contêm o relatório de auditoria gerado pela NacionalSign."
         )
 
