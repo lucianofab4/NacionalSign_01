@@ -1,4 +1,4 @@
-from __future__ import annotations
+Ôªøfrom __future__ import annotations
 
 import base64
 import mimetypes
@@ -222,9 +222,9 @@ class NotificationService:
         agent_download_url: str | None = None,
     ) -> str:
         lines = [
-            f"Ol? {party.full_name},",
+            f"Ol√° {party.full_name},",
             "",
-            f"Voc? tem uma nova solicita??o de assinatura para '{document.name}'.",
+            f"Voc√™ tem uma nova solicita√ß√£o de assinatura para '{document.name}'.",
         ]
         if document_status:
             lines.append(f"Status atual: {document_status}.")
@@ -243,7 +243,8 @@ class NotificationService:
                 ]
             )
         lines.extend(["", "Equipe NacionalSign"])
-        return "\n".join(lines)
+        return "
+".join(lines)
 
 
 
@@ -259,7 +260,7 @@ class NotificationService:
         if not self.sms_config:
             raise RuntimeError("SMS sender not configured")
         client = Client(self.sms_config.account_sid, self.sms_config.auth_token)
-        parts = [f"Voc? tem uma solicita??o para '{document.name}'."]
+        parts = [f"Voc√™ tem uma solicita√ß√£o para '{document.name}'."]
         if document_status:
             parts.append(f"Status: {document_status}.")
         if deadline_display:
@@ -518,8 +519,9 @@ class NotificationService:
             },
         )
         text_body = (
-            f"Documento '{document.name}' foi finalizado.\n"
-            "Os anexos desta mensagem contÍm o relatÛrio de auditoria gerado pela NacionalSign."
+            f"Documento '{document.name}' foi finalizado.
+"
+            "Os anexos desta mensagem cont√™m o relat√≥rio de auditoria gerado pela NacionalSign."
         )
 
         for email in unique_emails:
@@ -561,20 +563,20 @@ class NotificationService:
 
         safe_subject = subject or "Acesso ao sistema NacionalSign"
         html_body = (
-            f"<p>Ol· {full_name},</p>"
+            f"<p>Ol√° {full_name},</p>"
             "<p>Segue abaixo o seu acesso ao sistema NacionalSign:</p>"
-            f"<p><strong>Usu·rio:</strong> {username}<br/>"
-            f"<strong>Senha tempor·ria:</strong> {temporary_password}</p>"
-            "<p>No primeiro acesso vocÍ dever· alterar a senha.</p>"
-            "<p>Se vocÍ n„o reconhece esta solicitaÁ„o, entre em contato com o suporte.</p>"
+            f"<p><strong>Usu√°rio:</strong> {username}<br/>"
+            f"<strong>Senha tempor√°ria:</strong> {temporary_password}</p>"
+            "<p>No primeiro acesso voc√™ dever√° alterar a senha.</p>"
+            "<p>Se voc√™ n√£o reconhece esta solicita√ß√£o, entre em contato com o suporte.</p>"
         )
         text_body = (
-            f"Ol· {full_name},\n\n"
+            f"Ol√° {full_name},\n\n"
             "Segue abaixo o seu acesso ao sistema NacionalSign:\n"
-            f"Usu·rio: {username}\n"
-            f"Senha tempor·ria: {temporary_password}\n\n"
-            "No primeiro acesso vocÍ dever· alterar a senha.\n"
-            "Se vocÍ n„o reconhece esta solicitaÁ„o, entre em contato com o suporte.\n"
+            f"Usu√°rio: {username}\n"
+            f"Senha tempor√°ria: {temporary_password}\n\n"
+            "No primeiro acesso voc√™ dever√° alterar a senha.\n"
+            "Se voc√™ n√£o reconhece esta solicita√ß√£o, entre em contato com o suporte.\n"
         )
 
         self._send_email(
