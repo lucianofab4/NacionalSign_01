@@ -33,16 +33,7 @@ def _services(session: Session) -> tuple[WorkflowService, AuditService]:
         public_base_url=settings.resolved_public_app_url(),
         agent_download_url=settings.signing_agent_download_url,
     )
-    # Configure email channel if SMTP is set via settings (.env)
-    if settings.smtp_host and settings.smtp_sender:
-        notification_service.configure_email(
-            host=settings.smtp_host,
-            port=settings.smtp_port,
-            sender=settings.smtp_sender,
-            username=settings.smtp_username,
-            password=settings.smtp_password,
-            starttls=settings.smtp_starttls,
-        )
+    notification_service.apply_email_settings(settings)
     if settings.twilio_account_sid and settings.twilio_auth_token:
         notification_service.configure_sms(
             account_sid=settings.twilio_account_sid,

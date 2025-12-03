@@ -24,22 +24,15 @@ class SendCredentialsRequest(BaseModel):
 
 
 def _build_notification_service(session: Session | None = None) -> NotificationService | None:
-    if not settings.smtp_host or not settings.smtp_sender:
-        return None
     audit_service = AuditService(session) if session else None
     service = NotificationService(
         audit_service=audit_service,
         public_base_url=settings.resolved_public_app_url(),
         agent_download_url=settings.signing_agent_download_url,
     )
-    service.configure_email(
-        host=settings.smtp_host,
-        port=settings.smtp_port,
-        sender=settings.smtp_sender,
-        username=settings.smtp_username,
-        password=settings.smtp_password,
-        starttls=settings.smtp_starttls,
-    )
+    service.apply_email_settings(settings)
+    if not (service.sendgrid_config or service.email_config):
+        return None
     return service
 
 @router.get("", response_model=List[UserRead])

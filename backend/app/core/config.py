@@ -51,12 +51,14 @@ class Settings(BaseSettings):
     two_factor_issuer: str = "NacionalSign"
 
     # E-mail (SMTP)
+    email_backend: str = "smtp"
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: Optional[str] = "documentoseltronico@gmail.com"
     smtp_password: Optional[str] = "muop viro wjyf pwqo"
     smtp_sender: Optional[str] = "Documentos Eletrônicos <documentoseltronico@gmail.com>"
     smtp_starttls: bool = True
+    sendgrid_api_key: Optional[str] = None
 
     # URLs públicas (links enviados por e-mail)
     public_base_url: str = "http://localhost:8000"

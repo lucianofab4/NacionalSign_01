@@ -1,12 +1,16 @@
-Ôªøfrom __future__ import annotations
+from __future__ import annotations
 
+import base64
 import mimetypes
 import smtplib
 from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
+
+import httpx
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -24,6 +28,11 @@ class EmailConfig:
     password: str | None
     sender: str
     starttls: bool
+
+@dataclass
+class SendGridConfig:
+    api_key: str
+    sender: str | None
 
 
 @dataclass
@@ -50,9 +59,16 @@ class NotificationService:
         agent_download_url: str | None = None,
         sms_config: Optional[SMSConfig] = None,
         template_root: Path | None = None,
+        sendgrid_config: Optional[SendGridConfig] = None,
+        email_backend: str = "smtp",
     ) -> None:
         self.audit_service = audit_service
         self.email_config = email_config
+        self.sendgrid_config = sendgrid_config
+        normalized_backend = (email_backend or "smtp").strip().lower()
+        self.email_backend = normalized_backend if normalized_backend in {"smtp", "sendgrid"} else "smtp"
+        if self.sendgrid_config and self.email_backend != "sendgrid":
+            self.email_backend = "sendgrid"
         self.public_base_url = public_base_url
         self.agent_download_url = agent_download_url
         self.sms_config = sms_config
@@ -67,6 +83,49 @@ class NotificationService:
 
     def configure_agent_download_url(self, url: str | None) -> None:
         self.agent_download_url = url
+
+    def apply_email_settings(self, settings) -> None:
+        preferred = (getattr(settings, "email_backend", "smtp") or "smtp").strip().lower()
+        sender = getattr(settings, "smtp_sender", None)
+        sendgrid_key = getattr(settings, "sendgrid_api_key", None)
+        smtp_host = getattr(settings, "smtp_host", None)
+        smtp_port = getattr(settings, "smtp_port", None)
+        smtp_username = getattr(settings, "smtp_username", None)
+        smtp_password = getattr(settings, "smtp_password", None)
+        smtp_starttls = getattr(settings, "smtp_starttls", True)
+
+        def use_sendgrid() -> bool:
+            if sendgrid_key and sender:
+                self.configure_sendgrid(api_key=sendgrid_key, sender=sender)
+                return True
+            return False
+
+        def use_smtp() -> bool:
+            if smtp_host and sender and smtp_port:
+                self.configure_email(
+                    host=smtp_host,
+                    port=int(smtp_port),
+                    sender=sender,
+                    username=smtp_username,
+                    password=smtp_password,
+                    starttls=bool(smtp_starttls),
+                )
+                return True
+            return False
+
+        if preferred == "sendgrid":
+            if use_sendgrid():
+                return
+            use_smtp()
+            return
+        if preferred == "smtp":
+            if use_smtp():
+                return
+            use_sendgrid()
+            return
+
+        if not use_sendgrid():
+            use_smtp()
 
     def configure_email(
         self,
@@ -85,6 +144,16 @@ class NotificationService:
             sender=sender,
             starttls=starttls,
         )
+        self.email_backend = "smtp"
+
+    def configure_sendgrid(
+        self,
+        *,
+        api_key: str,
+        sender: str | None = None,
+    ) -> None:
+        self.sendgrid_config = SendGridConfig(api_key=api_key, sender=sender)
+        self.email_backend = "sendgrid"
 
     def configure_sms(
         self,
@@ -126,6 +195,11 @@ class NotificationService:
             document_id=document.id if document else None,
             details=details,
         )
+
+    def _email_sender_available(self) -> bool:
+        if self.email_backend == "sendgrid":
+            return self.sendgrid_config is not None
+        return self.email_config is not None
 
     def _build_action_link(self, token: str | None) -> str | None:
         if not token or not self.public_base_url:
@@ -315,14 +389,14 @@ class NotificationService:
             )
             return True
 
-        if not self.email_config:
+        if not self._email_sender_available():
             self._record_event(
                 event_type="notification_skipped",
                 request=request,
                 party=party,
                 document=document,
                 channel=channel,
-                extra={"reason": "email_config_missing"},
+                extra={"reason": "email_sender_missing"},
             )
             return False
         if not getattr(party, "email", None):
@@ -396,7 +470,7 @@ class NotificationService:
         attachments: Sequence[str | Path] | None = None,
         extra_recipients: Sequence[str] | None = None,
     ) -> None:  # type: ignore[no-untyped-def]
-        if not self.email_config:
+        if not self._email_sender_available():
             return
 
         recipients = []
@@ -445,7 +519,7 @@ class NotificationService:
         )
         text_body = (
             f"Documento '{document.name}' foi finalizado.\n"
-            "Os anexos desta mensagem cont√™m o relat√≥rio de auditoria gerado pela NacionalSign."
+            "Os anexos desta mensagem contÍm o relatÛrio de auditoria gerado pela NacionalSign."
         )
 
         for email in unique_emails:
@@ -482,25 +556,25 @@ class NotificationService:
         temporary_password: str,
         subject: str | None = None,
     ) -> None:
-        if not self.email_config:
+        if not self._email_sender_available():
             raise RuntimeError("Email sender not configured")
 
         safe_subject = subject or "Acesso ao sistema NacionalSign"
         html_body = (
-            f"<p>Ol√° {full_name},</p>"
+            f"<p>Ol· {full_name},</p>"
             "<p>Segue abaixo o seu acesso ao sistema NacionalSign:</p>"
-            f"<p><strong>Usu√°rio:</strong> {username}<br/>"
-            f"<strong>Senha tempor√°ria:</strong> {temporary_password}</p>"
-            "<p>No primeiro acesso voc√™ dever√° alterar a senha.</p>"
-            "<p>Se voc√™ n√£o reconhece esta solicita√ß√£o, entre em contato com o suporte.</p>"
+            f"<p><strong>Usu·rio:</strong> {username}<br/>"
+            f"<strong>Senha tempor·ria:</strong> {temporary_password}</p>"
+            "<p>No primeiro acesso vocÍ dever· alterar a senha.</p>"
+            "<p>Se vocÍ n„o reconhece esta solicitaÁ„o, entre em contato com o suporte.</p>"
         )
         text_body = (
-            f"Ol√° {full_name},\n\n"
+            f"Ol· {full_name},\n\n"
             "Segue abaixo o seu acesso ao sistema NacionalSign:\n"
-            f"Usu√°rio: {username}\n"
-            f"Senha tempor√°ria: {temporary_password}\n\n"
-            "No primeiro acesso voc√™ dever√° alterar a senha.\n"
-            "Se voc√™ n√£o reconhece esta solicita√ß√£o, entre em contato com o suporte.\n"
+            f"Usu·rio: {username}\n"
+            f"Senha tempor·ria: {temporary_password}\n\n"
+            "No primeiro acesso vocÍ dever· alterar a senha.\n"
+            "Se vocÍ n„o reconhece esta solicitaÁ„o, entre em contato com o suporte.\n"
         )
 
         self._send_email(
@@ -525,6 +599,18 @@ class NotificationService:
         text_body: str | None = None,
         attachments: Sequence[EmailAttachment] | None = None,
     ) -> None:
+        if self.email_backend == "sendgrid":
+            if not self.sendgrid_config:
+                raise RuntimeError("SendGrid sender not configured")
+            self._send_email_via_sendgrid(
+                to=to,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+                attachments=list(attachments or []),
+            )
+            return
+
         if not self.email_config:
             raise RuntimeError("Email sender not configured")
 
@@ -555,3 +641,60 @@ class NotificationService:
             if self.email_config.username and self.email_config.password:
                 smtp.login(self.email_config.username, self.email_config.password)
             smtp.send_message(message)
+
+    def _send_email_via_sendgrid(
+        self,
+        *,
+        to: str,
+        subject: str,
+        html_body: str,
+        text_body: str | None,
+        attachments: Sequence[EmailAttachment],
+    ) -> None:
+        if not self.sendgrid_config:
+            raise RuntimeError("SendGrid sender not configured")
+
+        sender = self.sendgrid_config.sender or (self.email_config.sender if self.email_config else None)
+        if not sender:
+            raise RuntimeError("SendGrid sender address missing")
+        name, email = parseaddr(sender)
+        if not email:
+            raise RuntimeError("SendGrid sender address invalid")
+
+        contents: list[dict[str, str]] = []
+        if text_body:
+            contents.append({"type": "text/plain", "value": text_body})
+        contents.append({"type": "text/html", "value": html_body})
+
+        payload: dict[str, object] = {
+            "personalizations": [{"to": [{"email": to}]}],
+            "from": {"email": email},
+            "subject": subject,
+            "content": contents,
+        }
+        if name:
+            payload["from"]["name"] = name
+
+        if attachments:
+            payload["attachments"] = [
+                {
+                    "content": base64.b64encode(item.content).decode("ascii"),
+                    "type": item.mime_type or "application/octet-stream",
+                    "filename": item.filename,
+                    "disposition": "attachment",
+                }
+                for item in attachments
+            ]
+
+        headers = {
+            "Authorization": f"Bearer {self.sendgrid_config.api_key}",
+            "Content-Type": "application/json",
+        }
+        response = httpx.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+
