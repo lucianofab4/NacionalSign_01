@@ -91,8 +91,10 @@ def create_app() -> FastAPI:
         if origin and any(origin.startswith(o) for o in origins):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            requested_headers = request.headers.get("access-control-request-headers")
+            allowed_headers = requested_headers or "Authorization, Content-Type, X-Requested-With, Accept, Origin"
+            response.headers["Access-Control-Allow-Headers"] = allowed_headers
             response.headers["Vary"] = "Origin"
         return response
 
@@ -100,8 +102,11 @@ def create_app() -> FastAPI:
     async def preflight_handler(request: Request, rest_of_path: str):
         headers = {
             "Access-Control-Allow-Origin": request.headers.get("origin") or origins[0],
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": request.headers.get(
+                "access-control-request-headers",
+                "Authorization, Content-Type, X-Requested-With, Accept, Origin",
+            ),
             "Access-Control-Allow-Credentials": "true",
         }
         return JSONResponse(content={"ok": True}, headers=headers)
