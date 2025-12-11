@@ -11,9 +11,10 @@ from sqlmodel import Session, select
 
 from app.api.deps import get_db
 from app.core.config import settings
-from app.models.document import Document, DocumentParty, DocumentVersion
+from app.models.document import Document, DocumentParty, DocumentVersion, DocumentField
 from app.models.signing import SigningAgentAttempt, SigningAgentAttemptStatus
 from app.models.workflow import SignatureRequest, SignatureRequestStatus, WorkflowStep
+from app.schemas.document import DocumentFieldRead
 from app.schemas.signing_agent import (
     PublicAgentSessionCompletePayload,
     PublicAgentSessionStartPayload,
@@ -27,10 +28,22 @@ from app.schemas.public import PublicSignatureRead
 from app.services.audit import AuditService
 from app.services.document import DocumentService
 from app.services.notification import NotificationService
-from app.services.signing_agent import SigningAgentClient, SigningAgentError
+from app.services.signing_agent import SigningAgentError
 from app.services.workflow import WorkflowService
 
 router = APIRouter(prefix="/public/signatures", tags=["public-signatures"])
+CONSENT_TEXT_DEFAULT = "Autorizo o uso da minha imagem e dados pessoais para fins de assinatura eletrônica."
+CONSENT_VERSION_DEFAULT = "v1"
+
+def _build_preview_urls(token: str) -> tuple[str, str]:
+    preview_path = f"/public/signatures/{token}/preview"
+    base = (settings.public_base_url or "").rstrip("/")
+    if base:
+        preview_url = f"{base}{preview_path}"
+    else:
+        preview_url = preview_path
+    download_url = f"{preview_url}?download=1"
+    return preview_url, download_url
 
 
 def _build_workflow_service(session: Session) -> WorkflowService:
@@ -66,10 +79,16 @@ def _load_public_context(
     token: str,
 ) -> tuple[WorkflowService, SignatureRequest, WorkflowStep, DocumentParty | None, Document]:
     """Carrega o contexto completo da assinatura pública via token."""
+    normalized_token = (token or "").strip()
+    if not normalized_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assinatura não encontrada.")
+
     workflow_service = _build_workflow_service(session)
 
     try:
-        data = workflow_service.get_public_signature(token)
+        data = workflow_service.get_public_signature(normalized_token)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assinatura não encontrada.")
 
@@ -78,7 +97,10 @@ def _load_public_context(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Solicitação de assinatura inválida.")
 
     if request.token_expires_at and datetime.utcnow() > request.token_expires_at:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token de assinatura expirado.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Link de assinatura expirado. Solicite um novo e-mail.",
+        )
 
     step = session.get(WorkflowStep, request.workflow_step_id)
     if not step:
@@ -149,94 +171,6 @@ def _build_public_summary(
         requires_certificate=requires_certificate,
         signature_method=normalized_method,
     )
-
-def _fetch_signing_agent_certificates() -> list[SigningCertificate]:
-    """Busca certificados disponíveis no agente local."""
-    try:
-        client = SigningAgentClient()
-        raw_items = list(client.list_certificates())
-    except SigningAgentError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-
-    certificates: list[SigningCertificate] = []
-    for idx, item in enumerate(raw_items):
-        subject = item.get("subject") or item.get("Subject")
-        if not subject:
-            continue
-        certificates.append(
-            SigningCertificate(
-                index=item.get("index", idx),
-                subject=subject,
-                issuer=item.get("issuer") or item.get("Issuer", ""),
-                serial_number=item.get("serialNumber") or item.get("serial") or item.get("SerialNumber"),
-                thumbprint=item.get("thumbprint") or item.get("Thumbprint"),
-                not_before=item.get("notBefore") or item.get("NotBefore"),
-                not_after=item.get("notAfter") or item.get("NotAfter"),
-            )
-        )
-
-    if not certificates:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhum certificado digital encontrado.")
-
-    return certificates
-
-
-def _execute_public_signing_agent(
-    *,
-    document_service: DocumentService,
-    audit_service: AuditService,
-    workflow_service: WorkflowService,
-    document: Document,
-    version: DocumentVersion,
-    payload: SignPdfRequest,
-    signature_request: SignatureRequest,
-    request: Request,
-    token: str,
-) -> SignPdfResponse:
-    """Executa a assinatura digital via agente local."""
-    ip_address = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-
-    attempt = document_service.create_signing_agent_attempt(
-        document=document,
-        version=version,
-        actor_id=None,
-        actor_role="public",
-        payload=payload,
-    )
-
-    try:
-        signed_version, agent_response = document_service.sign_version_with_agent(
-            document,
-            version,
-            payload,
-            actor_reference=str(signature_request.party_id or signature_request.id),
-        )
-    except SigningAgentError as exc:
-        document_service.finalize_signing_agent_attempt(
-            attempt,
-            SigningAgentAttemptStatus.ERROR,
-            error_message=str(exc),
-        )
-        raise HTTPException(status_code=502, detail=f"Falha na comunicação com agente local: {exc}") from exc
-
-    return _finalize_public_signing_attempt(
-        document_service=document_service,
-        audit_service=audit_service,
-        workflow_service=workflow_service,
-        document=document,
-        version=version,
-        signature_request=signature_request,
-        payload=payload,
-        attempt=attempt,
-        agent_response=agent_response,
-        signed_version=signed_version,
-        ip_address=ip_address,
-        user_agent=user_agent,
-        token=token,
-        source="signing-agent-public",
-    )
-
 
 def _finalize_public_signing_attempt(
     *,
@@ -313,19 +247,110 @@ class PublicMeta(BaseModel):
     participant_id: str
     requires_certificate: bool
     status: str
-
+    document_name: str | None = None
+    signer_name: str | None = None
+    version_id: str | None = None
+    requires_email_confirmation: bool = False
+    requires_phone_confirmation: bool = False
+    supports_certificate: bool = False
+    signature_method: str = "electronic"
+    typed_name_required: bool = False
+    collect_typed_name: bool = False
+    collect_signature_image: bool = False
+    signature_image_required: bool = False
+    requires_consent: bool = False
+    consent_text: str | None = None
+    consent_version: str | None = None
+    available_fields: list[str] | None = None
+    can_sign: bool = False
 
 
 @router.get("/{token}/meta", response_model=PublicMeta)
 def get_public_meta(token: str, session: Session = Depends(get_db)) -> PublicMeta:
     _, request, step, party, document = _load_public_context(session, token)
 
+    version: DocumentVersion | None = None
+    if document.current_version_id:
+        version = session.get(DocumentVersion, document.current_version_id)
+    if not version:
+        version = session.exec(
+            select(DocumentVersion)
+            .where(DocumentVersion.document_id == document.id)
+            .order_by(DocumentVersion.created_at.desc())
+        ).first()
+
+    supports_certificate = bool(
+        version and "pdf" in ((version.mime_type or "").lower() if version.mime_type else "")
+    )
+    require_email_confirmation = bool(party and party.require_email and getattr(party, "email", None))
+    require_phone_confirmation = bool(party and party.require_phone and getattr(party, "phone_number", None))
+
+    role_key = (party.role or "").strip().lower() if party and party.role else ""
+    field_query = select(DocumentField).where(DocumentField.document_id == document.id)
+    if version:
+        field_query = field_query.where(DocumentField.version_id == version.id)
+
+    filtered_fields = session.exec(field_query).all()
+    if role_key:
+        filtered_fields = [
+            field for field in filtered_fields if (field.role or "").strip().lower() == role_key
+        ]
+
+    typed_required = any(field.field_type == "typed_name" and field.required for field in filtered_fields)
+    image_required = any(field.field_type == "signature_image" and field.required for field in filtered_fields)
+    allow_typed_name = bool(party and party.allow_typed_name)
+    allow_signature_image = bool(party and party.allow_signature_image)
+    collect_typed_name = allow_typed_name or typed_required
+    collect_signature_image = allow_signature_image or image_required
+    consent_text = CONSENT_TEXT_DEFAULT if collect_signature_image else None
+    consent_version = CONSENT_VERSION_DEFAULT if collect_signature_image else None
+
+    signature_method_raw = (party.signature_method or "electronic").strip().lower() if party else "electronic"
+    normalized_signature_method = "digital" if signature_method_raw.startswith("digital") else signature_method_raw
+    preview_url, download_url = _build_preview_urls(token)
+    signer_tax_id = getattr(party, "cpf", None)
+    can_sign = request.status in {SignatureRequestStatus.PENDING, SignatureRequestStatus.SENT}
+
     return PublicMeta(
         document_id=str(document.id),
         participant_id=str(step.party_id or (party.id if party else "")),
         requires_certificate=_requires_certificate(party),
         status=request.status.value if hasattr(request.status, "value") else str(request.status),
+        document_name=document.name,
+        signer_name=party.full_name if party else None,
+        version_id=str(version.id) if version else None,
+        requires_email_confirmation=require_email_confirmation,
+        requires_phone_confirmation=require_phone_confirmation,
+        supports_certificate=supports_certificate,
+        signature_method=normalized_signature_method,
+        typed_name_required=typed_required and collect_typed_name,
+        collect_typed_name=collect_typed_name,
+        collect_signature_image=collect_signature_image,
+        signature_image_required=image_required and collect_signature_image,
+        requires_consent=collect_signature_image,
+        consent_text=consent_text,
+        consent_version=consent_version,
+        available_fields=[field.field_type for field in filtered_fields],
+        can_sign=can_sign,
+        reason=None,
+        preview_url=preview_url,
+        download_url=download_url,
+        signer_tax_id=signer_tax_id,
     )
+
+@router.get("/{token}/fields", response_model=List[DocumentFieldRead])
+def get_public_fields(token: str, session: Session = Depends(get_db)) -> List[DocumentFieldRead]:
+    _, _, _, party, document = _load_public_context(session, token)
+    version = _resolve_document_version(session, document)
+    document_service = DocumentService(session)
+    fields = document_service.list_fields(document, version)
+    role_key = (party.role or "").strip().lower() if party and party.role else ""
+    filtered = [
+        field
+        for field in fields
+        if not role_key or (field.role or "").strip().lower() == role_key
+    ]
+    return [DocumentFieldRead.model_validate(field, from_attributes=True) for field in filtered]
 
 
 @router.post("/{token}", response_model=PublicSignatureRead)
@@ -360,45 +385,6 @@ def act_public_sign(
     version = _resolve_document_version(session, document)
     summary = _build_public_summary(document, party, request_obj, version)
     return summary
-
-
-@router.get("/{token}/agent/certificates", response_model=List[SigningCertificate])
-def list_public_agent_certificates(token: str, session: Session = Depends(get_db)) -> List[SigningCertificate]:
-    """Lista certificados disponíveis para assinatura digital."""
-    _, _, _, party, _ = _load_public_context(session, token)
-    if not _requires_certificate(party):
-        raise HTTPException(status_code=400, detail="Esta assinatura não exige certificado digital.")
-    return _fetch_signing_agent_certificates()
-
-
-@router.post("/{token}/agent/sign", response_model=SignPdfResponse)
-def sign_public_with_agent(
-    token: str,
-    payload: SignPdfRequest,
-    request: Request,
-    session: Session = Depends(get_db),
-) -> SignPdfResponse:
-    """Executa a assinatura pública com certificado (ICP)."""
-    workflow_service, signature_request, _, party, document = _load_public_context(session, token)
-
-    if not _requires_certificate(party):
-        raise HTTPException(status_code=400, detail="Esta assinatura não exige certificado digital.")
-
-    version = _resolve_document_version(session, document)
-    document_service = DocumentService(session)
-    audit_service = AuditService(session)
-
-    return _execute_public_signing_agent(
-        document_service=document_service,
-        audit_service=audit_service,
-        workflow_service=workflow_service,
-        document=document,
-        version=version,
-        payload=payload,
-        signature_request=signature_request,
-        request=request,
-        token=token,
-    )
 
 
 @router.post("/{token}/agent/session", response_model=PublicAgentSessionStartResponse)

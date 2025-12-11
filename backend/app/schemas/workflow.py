@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Any
+from typing import Literal, Any, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -72,6 +72,22 @@ class WorkflowStepRead(IDModel, Timestamped):
     completed_at: datetime | None
 
 
+class SignatureFieldValue(BaseModel):
+    text: str | None = None
+    image: str | None = None
+    image_mime: str | None = None
+    image_name: str | None = None
+
+
+class FieldSignature(BaseModel):
+    field_id: str
+    field_type: str
+    typed_name: str | None = None
+    signature_image: str | None = None
+    signature_image_mime: str | None = None
+    signature_image_name: str | None = None
+
+
 class SignatureAction(BaseModel):
     action: str  # sign | refuse
     reason: str | None = None
@@ -96,6 +112,8 @@ class SignatureAction(BaseModel):
     signed_pdf_name: str | None = None
     signed_pdf_mime: str | None = None
     signed_pdf_digest: str | None = None
+    field_values: dict[str, SignatureFieldValue] | None = None
+    fields: List[FieldSignature] = Field(default_factory=list)
 
 
 class SignatureRequestRead(IDModel, Timestamped):

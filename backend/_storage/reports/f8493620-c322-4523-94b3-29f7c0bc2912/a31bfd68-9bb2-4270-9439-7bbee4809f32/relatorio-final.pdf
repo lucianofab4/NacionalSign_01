@@ -1,0 +1,168 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (NacionalSign Fallback)
+/Author (anonymous)
+/CreationDate (D\07220251209213431\05503\04700\047)
+/Creator (ReportLab PDF Library \055 www\056reportlab\056com)
+/Keywords ()
+/ModDate (D\07220251209213431\05503\04700\047)
+/Subject (unspecified)
+/Title (Relat\363rio 22)
+/Trapped (\057False)
+/NSDigest (bdde5c4467f2f1723ada4d17ce8be6b7b660ec42f2045e48206106cb61148a6e)
+/NSIssuedAt (2025\05512\05510T00\07234\07231\056806306\05300\07200)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 2
+/Kids [ 4 0 R 8 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+4 0 obj
+<<
+/Contents 5 0 R
+/MediaBox [ 0 0 612 792 ]
+/Resources <<
+/Font 6 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Length 3552
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (Relat\363rio de auditoria - Documento 22) Tj T* ET
+BT 1 0 0 1 72 706 Tm (Documento ID: a31bfd68-9bb2-4270-9439-7bbee4809f32) Tj T* ET
+BT 1 0 0 1 72 692 Tm (Status final: completed) Tj T* ET
+BT 1 0 0 1 72 678 Tm (Workflow ID: 45e6802e-97e1-40d6-83ce-bade573b4d9b) Tj T* ET
+BT 1 0 0 1 72 664 Tm (Gerado em: 10/12/2025 00:34:31 UTC) Tj T* ET
+BT 1 0 0 1 72 650 Tm  T* ET
+BT 1 0 0 1 72 636 Tm (Participantes:) Tj T* ET
+BT 1 0 0 1 72 622 Tm (- Luciano Dias \(ceo\)) Tj T* ET
+BT 1 0 0 1 72 608 Tm (  Email: luciano.dias888@gmail.com | Telefone: 11944812473) Tj T* ET
+BT 1 0 0 1 72 594 Tm (  Status: pending) Tj T* ET
+BT 1 0 0 1 72 580 Tm  T* ET
+BT 1 0 0 1 72 566 Tm (Solicita\347\365es:) Tj T* ET
+BT 1 0 0 1 72 552 Tm (- Solicita\347\343o 017c4b89-75ef-4e31-a824-cd5086b47820) Tj T* ET
+BT 1 0 0 1 72 538 Tm (  Parte: Luciano Dias) Tj T* ET
+BT 1 0 0 1 72 524 Tm (  Status: signed) Tj T* ET
+BT 1 0 0 1 72 510 Tm (  Canal: email) Tj T* ET
+BT 1 0 0 1 72 496 Tm (  Emitido em: 10/12/2025 00:32:51 UTC) Tj T* ET
+BT 1 0 0 1 72 482 Tm (    - A\347\343o: assinatura) Tj T* ET
+BT 1 0 0 1 72 468 Tm (      Data: 10/12/2025 00:34:31 UTC if signature.signed_at else '-') Tj T* ET
+BT 1 0 0 1 72 454 Tm (      IP: -) Tj T* ET
+BT 1 0 0 1 72 440 Tm (      Dados fornecidos pelo signat\341rio:) Tj T* ET
+BT 1 0 0 1 72 426 Tm (      Modalidades utilizadas: nome digitado) Tj T* ET
+BT 1 0 0 1 72 412 Tm (      Nome digitado: Luciano Dias) Tj T* ET
+BT 1 0 0 1 72 398 Tm (      Hash do nome \(SHA-256\): a3f715760af78acf7099fde8daac933081bff9a146b469c5a15b8f64b53db242) Tj T* ET
+BT 1 0 0 1 72 384 Tm  T* ET
+BT 1 0 0 1 72 370 Tm (Eventos de auditoria:) Tj T* ET
+BT 1 0 0 1 72 356 Tm (- 10/12/2025 00:32:06 UTC - document_created) Tj T* ET
+BT 1 0 0 1 72 342 Tm (  Detalhes: {"document": "22", "area_id": "bc1fd594-2701-41d4-8068-7c3f300bd39f"}) Tj T* ET
+BT 1 0 0 1 72 328 Tm  T* ET
+BT 1 0 0 1 72 314 Tm (- 10/12/2025 00:32:06 UTC - document_version_uploaded) Tj T* ET
+BT 1 0 0 1 72 300 Tm (  Detalhes: {"version_id": "82baf77b-fa4a-4db4-867c-8d5d4821bae5", "file": "Contratoteste02-LUC20210601-003.pdf"}) Tj T* ET
+BT 1 0 0 1 72 286 Tm  T* ET
+BT 1 0 0 1 72 272 Tm (- 10/12/2025 00:32:29 UTC - document_party_added) Tj T* ET
+BT 1 0 0 1 72 258 Tm (  Detalhes: {"party_id": "301f5abe-6f41-4805-81e9-d3111bbd00a2", "role": "ceo"}) Tj T* ET
+BT 1 0 0 1 72 244 Tm  T* ET
+BT 1 0 0 1 72 230 Tm (- 10/12/2025 00:32:40 UTC - document_field_created) Tj T* ET
+BT 1 0 0 1 72 216 Tm (  Detalhes: {"field_id": "2c6a124a-c6ac-4320-81ad-e6e9a1354309", "role": "ceo", "field_type": "signature"}) Tj T* ET
+BT 1 0 0 1 72 202 Tm  T* ET
+BT 1 0 0 1 72 188 Tm (- 10/12/2025 00:32:43 UTC - document_field_created) Tj T* ET
+BT 1 0 0 1 72 174 Tm (  Detalhes: {"field_id": "768410a0-1b6f-49ea-b2b4-1bf767237e32", "role": "ceo", "field_type": "signature"}) Tj T* ET
+BT 1 0 0 1 72 160 Tm  T* ET
+BT 1 0 0 1 72 146 Tm (- 10/12/2025 00:32:51 UTC - notification_attempt) Tj T* ET
+BT 1 0 0 1 72 132 Tm (  Detalhes: {"request_id": "017c4b89-75ef-4e31-a824-cd5086b47820", "party_email": "luciano.dias888@gmail.com", "channel": "email"}) Tj T* ET
+BT 1 0 0 1 72 118 Tm  T* ET
+BT 1 0 0 1 72 104 Tm (- 10/12/2025 00:32:54 UTC - notification_sent) Tj T* ET
+BT 1 0 0 1 72 90 Tm (  Detalhes: {"request_id": "017c4b89-75ef-4e31-a824-cd5086b47820", "party_email": "luciano.dias888@gmail.com", "channel": "email", "action_link": "http://localhost:5173/public/sign/PHETvDe0BZx3_LrWWcYU-Ydpdz3E0DaYXEsoZRK-Uzo", "deadline_at": null}) Tj T* ET
+BT 1 0 0 1 72 76 Tm  T* ET
+ 
+
+endstream
+endobj
+6 0 obj
+<<
+/F1 7 0 R
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+8 0 obj
+<<
+/Contents 9 0 R
+/MediaBox [ 0 0 612 792 ]
+/Resources <<
+/Font 6 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+9 0 obj
+<<
+/Length 910
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (- 10/12/2025 00:32:54 UTC - workflow_dispatched) Tj T* ET
+BT 1 0 0 1 72 706 Tm (  Detalhes: {"workflow_id": "45e6802e-97e1-40d6-83ce-bade573b4d9b"}) Tj T* ET
+BT 1 0 0 1 72 692 Tm  T* ET
+BT 1 0 0 1 72 678 Tm (- 10/12/2025 00:34:31 UTC - signature_evidence_captured) Tj T* ET
+BT 1 0 0 1 72 664 Tm (  Detalhes: {"signature_id": "c261e270-6057-4c8e-ac2b-f49127fcb6da", "request_id": "017c4b89-75ef-4e31-a824-cd5086b47820", "options": {"typed_name": true, "signature_image": false, "signature_draw": false, "available_fields": ["signature", "signature"], "signature_type_label": "electronic"}, "typed_name": "Luciano Dias", "typed_name_hash": "a3f715760af78acf7099fde8daac933081bff9a146b469c5a15b8f64b53db242", "field_signatures": ["2c6a124a-c6ac-4320-81ad-e6e9a1354309", "768410a0-1b6f-49ea-b2b4-1bf767237e32"]}) Tj T* ET
+BT 1 0 0 1 72 650 Tm  T* ET
+ 
+
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000478 00000 n 
+0000000543 00000 n 
+0000000592 00000 n 
+0000000781 00000 n 
+0000004385 00000 n 
+0000004416 00000 n 
+0000004523 00000 n 
+0000004712 00000 n 
+trailer
+<<
+/Size 10
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+5673
+%%EOF

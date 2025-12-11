@@ -82,11 +82,11 @@ class ReportService:
                 y -= 14
             return y
 
-        pdf.setTitle(f"Relat�rio {document.name}")
+        pdf.setTitle(f"Relatório {document.name}")
         y = height - 72
         y = write_lines(
             [
-                f"Relat�rio de auditoria - Documento {document.name}",
+                f"Relatório de auditoria - Documento {document.name}",
                 f"Documento ID: {document.id}",
                 f"Status final: {document.status.value}",
                 f"Workflow ID: {workflow.id}",
@@ -109,14 +109,14 @@ class ReportService:
                 y,
             )
 
-        y = write_lines(["Solicita��es:"], y)
+        y = write_lines(["Solicitações:"], y)
         requests = self._gather_requests(workflow)
         for request in requests:
             step = self.session.get(WorkflowStep, request.workflow_step_id)
             party = step.party if step else None
             y = write_lines(
                 [
-                    f"- Solicita��o {request.id}",
+                    f"- Solicitação {request.id}",
                     f"  Parte: {party.full_name if party else '-'}",
                     f"  Status: {request.status.value}",
                     f"  Canal: {request.token_channel or '-'}",
@@ -128,7 +128,7 @@ class ReportService:
             for signature in signatures:
                 y = write_lines(
                     [
-                        f"    - A��o: {signature.reason or 'assinatura'}",
+                        f"    - Ação: {signature.reason or 'assinatura'}",
                         f"      Data: {signature.signed_at:%d/%m/%Y %H:%M:%S UTC if signature.signed_at else '-'}",
                         f"      IP: {signature.signer_ip or '-'}",
                     ],
@@ -206,7 +206,7 @@ class ReportService:
 
         signature = self.icp_service.apply_security(
             unsigned_pdf,
-            reason=f"Relat�rio final do documento {document.name}",
+            reason=f"Relatório final do documento {document.name}",
             location=self.icp_service.default_location,
         )
 

@@ -240,8 +240,8 @@ class WorkflowService:
         # Always refresh to recover plain token for notifications
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         request.token_hash = token_hash
-        ttl_hours = max(int(settings.public_token_ttl_hours or 24), 1)
-        request.token_expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
+        # Tokens públicos não expiram automaticamente (só mudam quando reenviados)
+        request.token_expires_at = None
         if not request.token_channel:
             request.token_channel = "email"
         self.session.add(request)
@@ -249,7 +249,11 @@ class WorkflowService:
         return token
 
     def _find_request_by_token(self, token: str) -> SignatureRequest:
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        normalized_token = (token or "").strip()
+        if not normalized_token:
+            raise ValueError("Invalid token")
+
+        token_hash = hashlib.sha256(normalized_token.encode()).hexdigest()
         request = self.session.exec(
             select(SignatureRequest).where(SignatureRequest.token_hash == token_hash)
         ).first()
@@ -405,6 +409,15 @@ class WorkflowService:
             typed_required = field_meta["typed_name_required"]
             image_required = field_meta["signature_image_required"]
             available_fields = field_meta["field_types"]
+            role_fields = self._load_role_fields(document, party)
+            field_lookup: Dict[str, DocumentField] = {str(field.id): field for field in role_fields}
+            required_field_ids = {
+                str(field.id)
+                for field in role_fields
+                if field.field_type in {"signature", "signature_image", "typed_name"} and field.required
+            }
+            provided_field_ids: set[str] = set()
+            field_value_capture: Dict[str, Dict[str, Any]] = {}
 
             if typed_required and party and not party.allow_typed_name:
                 raise ValueError("Configuração do signatário não permite nome digitado obrigatório.")
@@ -477,6 +490,74 @@ class WorkflowService:
                 consent_text = consent_text[:2000]
             consent_version = payload.consent_version.strip() if payload.consent_version else None
             consent_given_at = now if consent_given else None
+
+            document_service = DocumentService(self.session)
+            if payload.fields:
+                for field_payload in payload.fields:
+                    field_id = str(getattr(field_payload, "field_id", "")).strip()
+                    if not field_id:
+                        continue
+                    field_obj = field_lookup.get(field_id)
+                    if not field_obj:
+                        continue
+                    if field_obj.field_type not in {"signature", "signature_image", "typed_name"}:
+                        continue
+                    normalized = document_service.apply_field_signature(
+                        document=document,
+                        field=field_obj,
+                        payload=field_payload.model_dump(exclude_unset=True),
+                    )
+                    if normalized:
+                        provided_field_ids.add(field_id)
+                        field_value_capture[field_id] = normalized
+
+            # Auto-assign typed name to first available typed field if not explicitly provided
+            if typed_name_value:
+                for field in role_fields:
+                    field_key = str(field.id)
+                    if field.field_type != "typed_name" or field_key in provided_field_ids:
+                        continue
+                    normalized = document_service.apply_field_signature(
+                        document=document,
+                        field=field,
+                        payload={"typed_name": typed_name_value},
+                    )
+                    if normalized:
+                        provided_field_ids.add(field_key)
+                        field_value_capture[field_key] = normalized
+                    break
+
+            # Auto-assign signature image if provided but no explicit field payload
+            top_signature_payload: dict[str, Any] | None = None
+            if payload.signature_image:
+                top_signature_payload = {
+                    "signature_image": payload.signature_image,
+                    "signature_image_mime": payload.signature_image_mime,
+                    "signature_image_name": payload.signature_image_name,
+                }
+                for field in role_fields:
+                    field_key = str(field.id)
+                    if field.field_type != "signature_image" or field_key in provided_field_ids:
+                        continue
+                    normalized = document_service.apply_field_signature(
+                        document=document,
+                        field=field,
+                        payload={k: v for k, v in top_signature_payload.items() if v},
+                    )
+                    if normalized:
+                        provided_field_ids.add(field_key)
+                        field_value_capture[field_key] = normalized
+                    break
+
+            if required_field_ids:
+                missing_required = [
+                    field_lookup[field_id].label or field_lookup[field_id].field_type
+                    for field_id in required_field_ids
+                    if field_id not in provided_field_ids
+                ]
+                if missing_required:
+                    targets = ", ".join(missing_required)
+                    raise ValueError(f"Preencha os campos obrigatórios: {targets}")
 
             image_payload = payload.signature_image
             image_meta: Dict[str, Any] | None = None
@@ -571,14 +652,23 @@ class WorkflowService:
                     "path": storage_path,
                 }
 
+            signature_type_indicates_certificate = bool(
+                signature_type_label
+                and any(marker in signature_type_label for marker in ("digital", "certificado", "icp"))
+            )
+            signature_auth_value = (signature_authentication or "").strip().lower()
+            signature_auth_indicates_certificate = bool(
+                signature_auth_value and any(marker in signature_auth_value for marker in ("digital", "certificado", "icp"))
+            )
+
             certificate_used = any(
                 [
                     certificate_subject,
                     certificate_issuer,
                     certificate_serial,
                     certificate_thumbprint,
-                    signature_type_label,
-                    signature_authentication,
+                    signature_type_indicates_certificate,
+                    signature_auth_indicates_certificate,
                     signed_pdf_meta,
                 ]
             )
@@ -626,6 +716,7 @@ class WorkflowService:
                 reason=payload.reason,
                 typed_name=typed_name_value,
                 typed_name_hash=typed_name_hash,
+                field_values=field_value_capture or None,
                 evidence_options=evidence_options,
                 consent_given=consent_given,
                 consent_text=consent_text,
@@ -681,6 +772,8 @@ class WorkflowService:
                     evidence_log["consent_text"] = consent_text
                 if consent_given_at:
                     evidence_log["consent_given_at"] = consent_given_at.isoformat()
+            if field_value_capture:
+                evidence_log["field_signatures"] = list(field_value_capture.keys())
 
             request.status = SignatureRequestStatus.SIGNED
             step.completed_at = now
@@ -724,8 +817,6 @@ class WorkflowService:
             )
 
         if workflow.status == WorkflowStatus.COMPLETED and document.status == DocumentStatus.COMPLETED:
-            from app.services.document import DocumentService
-
             document_service = DocumentService(self.session)
             audit_service = AuditService(self.session)
             signature_result: SignatureResult | None = None
@@ -943,6 +1034,23 @@ class WorkflowService:
     @staticmethod
     def _normalize_role(role: str | None) -> str:
         return (role or "").strip().lower()
+
+    def _load_role_fields(self, document: Document, party: DocumentParty | None) -> list[DocumentField]:
+        role = self._normalize_role(getattr(party, "role", None))
+        if not role:
+            return []
+        document_service = DocumentService(self.session)
+        version_id = document_service.resolve_field_version_id(document, document.current_version_id, role=role)
+        if not version_id:
+            return []
+        statement = (
+            select(DocumentField)
+            .where(DocumentField.document_id == document.id)
+            .where(DocumentField.version_id == version_id)
+            .where(DocumentField.role == role)
+            .order_by(DocumentField.page, DocumentField.created_at)
+        )
+        return self.session.exec(statement).all()
 
     def _collect_field_metadata(self, document: Document, party: DocumentParty | None) -> Dict[str, Any]:
         role = self._normalize_role(getattr(party, "role", None))

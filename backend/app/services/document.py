@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import io
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -39,6 +42,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 
 from app.services.document_normalizer import normalize_to_pdf
 from app.services.contact import ContactService
@@ -122,6 +126,27 @@ class DocumentService:
 
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def resolve_field_version_id(
+        self,
+        document: Document,
+        version_id: UUID | None = None,
+        role: str | None = None,
+    ) -> UUID:
+        """
+        Returns the version that should be used for field lookups.
+        Always prefer the provided version/current version, even if it has no fields yet.
+        """
+        target_id = version_id or document.current_version_id
+        if not target_id:
+            raise ValueError("Documento não tem versão atual")
+
+        query = select(DocumentField.id).where(DocumentField.version_id == target_id)
+        if role:
+            query = query.where(DocumentField.role == role)
+
+        _ = bool(self.session.exec(query.limit(1)).first())
+        return target_id
 
     def _get_storage_backend(self) -> StorageBackend:
         storage = get_storage()
@@ -269,6 +294,8 @@ class DocumentService:
         document: Document,
         original_bytes: bytes,
         signature_mode: str | None = None,
+        document_fields: Sequence[DocumentField] | None = None,
+        field_signatures: dict[str, dict[str, Any]] | None = None,
     ) -> bytes:
         """
         Aplica marca d'água discreta + acrescenta páginas de protocolo visual.
@@ -280,7 +307,19 @@ class DocumentService:
             reader = PdfReader(io.BytesIO(original_bytes))
             writer = PdfWriter()
 
-            for page in reader.pages:
+            fields_by_id: dict[str, DocumentField] = {
+                str(field.id): field for field in (document_fields or [])
+            }
+            page_field_map: dict[int, list[tuple[DocumentField, dict[str, Any]]]] = defaultdict(list)
+            if field_signatures:
+                for raw_id, data in field_signatures.items():
+                    field = fields_by_id.get(str(raw_id))
+                    if not field:
+                        continue
+                    page_index = int(getattr(field, "page", 1) or 1)
+                    page_field_map[page_index].append((field, data))
+
+            for page_index, page in enumerate(reader.pages, start=1):
                 width = float(page.mediabox.width)
                 height = float(page.mediabox.height)
                 overlay_stream = io.BytesIO()
@@ -298,6 +337,16 @@ class DocumentService:
                     20,
                     f"Ref: {document.id} | Gerado em {datetime.utcnow():%d/%m/%Y %H:%M} (horário UTC)",
                 )
+
+                entries = page_field_map.get(page_index, []) if page_field_map else []
+                for field, data in entries:
+                    self._draw_field_signature(
+                        c,
+                        page_width=width,
+                        page_height=height,
+                        field=field,
+                        data=data,
+                    )
 
                 c.save()
                 overlay_stream.seek(0)
@@ -399,6 +448,108 @@ class DocumentService:
         if not segments:
             segments.append(indent)
         return segments
+
+    def apply_field_signature(
+        self,
+        document: Document,
+        field: DocumentField,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        if field.document_id != document.id:
+            raise ValueError("Campo não pertence ao documento selecionado.")
+
+        normalized_type = (field.field_type or "signature").strip().lower()
+        typed_value = (payload.get("typed_name") or "").strip()
+        if typed_value:
+            typed_value = typed_value[:256]
+        image_value = (payload.get("signature_image") or "").strip()
+
+        result: dict[str, Any] = {
+            "field_id": str(field.id),
+            "field_type": field.field_type,
+        }
+        if typed_value:
+            result["typed_name"] = typed_value
+        if image_value:
+            result["signature_image"] = image_value
+            mime = (payload.get("signature_image_mime") or "image/png").strip() or "image/png"
+            result["signature_image_mime"] = mime
+            image_name = (payload.get("signature_image_name") or "").strip()
+            if image_name:
+                result["signature_image_name"] = image_name
+
+        if normalized_type == "typed_name" and "typed_name" not in result:
+            raise ValueError("Este campo exige um nome digitado.")
+        if normalized_type == "signature_image" and "signature_image" not in result:
+            raise ValueError("Este campo exige uma imagem de assinatura.")
+        if normalized_type == "signature" and "typed_name" not in result and "signature_image" not in result:
+            raise ValueError("Informe um valor para o campo de assinatura.")
+
+        return result
+
+    def _collect_field_signatures(self, document: Document) -> dict[str, dict[str, Any]]:
+        statement = (
+            select(Signature)
+            .join(SignatureRequest, Signature.signature_request_id == SignatureRequest.id)
+            .join(WorkflowStep, SignatureRequest.workflow_step_id == WorkflowStep.id)
+            .join(WorkflowInstance, WorkflowStep.workflow_id == WorkflowInstance.id)
+            .where(WorkflowInstance.document_id == document.id)
+            .order_by(Signature.created_at.asc())
+        )
+        signatures = self.session.exec(statement).all()
+        collected: dict[str, dict[str, Any]] = {}
+        for signature in signatures:
+            values = signature.field_values or {}
+            if not isinstance(values, dict):
+                continue
+            for field_id, data in values.items():
+                if not isinstance(data, dict):
+                    continue
+                collected[str(field_id)] = data
+        return collected
+
+    def _draw_field_signature(
+        self,
+        overlay: canvas.Canvas,
+        *,
+        page_width: float,
+        page_height: float,
+        field: DocumentField,
+        data: dict[str, Any],
+    ) -> None:
+        width = max(float(field.width or 0.01), 0.01) * page_width
+        height = max(float(field.height or 0.01), 0.01) * page_height
+        x = max(float(field.x or 0.0), 0.0) * page_width
+        x = min(max(0.0, x), max(0.0, page_width - width))
+        top_offset = (float(field.y or 0.0) * page_height)
+        y = page_height - top_offset - height
+        y = min(max(0.0, y), max(0.0, page_height - height))
+
+        image_payload = (data.get("signature_image") or "").strip()
+        if image_payload:
+            try:
+                image_bytes = base64.b64decode(image_payload)
+                reader = ImageReader(io.BytesIO(image_bytes))
+                overlay.drawImage(reader, x, y, width=width, height=height, preserveAspectRatio=True, mask="auto")
+                return
+            except (binascii.Error, ValueError):
+                pass
+
+        typed_value = (data.get("typed_name") or "").strip()
+        if not typed_value:
+            return
+
+        font_name = "Times-Roman"
+        font_size = max(8, min(24, height * 0.4))
+        text_width = pdfmetrics.stringWidth(typed_value, font_name, font_size)
+        while text_width > width and font_size > 6:
+            font_size -= 1
+            text_width = pdfmetrics.stringWidth(typed_value, font_name, font_size)
+        overlay.setFont(font_name, font_size)
+        overlay.setFillColor(colors.HexColor("#111827"))
+        text_x = x + width / 2
+        text_y = y + (height - font_size) / 2
+        overlay.drawCentredString(text_x, text_y + font_size / 2, typed_value)
 
     def list_documents(self, tenant_id: str | UUID, area_id: str | UUID | None = None) -> Iterable[Document]:
         tenant_uuid = UUID(str(tenant_id))
@@ -763,6 +914,16 @@ class DocumentService:
         if not current_version:
             raise ValueError("Current version not found for document")
 
+        field_version_id = self.resolve_field_version_id(document, document.current_version_id)
+        document_fields: list[DocumentField] = []
+        if field_version_id:
+            document_fields = self.session.exec(
+                select(DocumentField)
+                .where(DocumentField.document_id == document.id)
+                .where(DocumentField.version_id == field_version_id)
+            ).all()
+        field_signatures = self._collect_field_signatures(document)
+
         filename = (Path(current_version.storage_path).name or "").lower()
         if filename.startswith("final-"):
             return current_version, None, None
@@ -809,6 +970,8 @@ class DocumentService:
             document=document,
             original_bytes=signed_bytes,
             signature_mode="electronic",
+            document_fields=document_fields,
+            field_signatures=field_signatures,
         )
         final_sha256 = hashlib.sha256(final_pdf).hexdigest()
 

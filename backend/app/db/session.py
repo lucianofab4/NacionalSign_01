@@ -57,20 +57,25 @@ def _ensure_schema_compatibility() -> None:
     try:
         with engine.begin() as conn:
             inspector = inspect(conn)
-            if "users" not in inspector.get_table_names():
-                return
+            table_names = set(inspector.get_table_names())
+            if "users" in table_names:
+                user_columns = {column["name"] for column in inspector.get_columns("users")}
+                if "phone_number" not in user_columns:
+                    logger.warning("Coluna 'phone_number' ausente na tabela 'users'. Aplicando ajuste automático.")
+                    statement = "ALTER TABLE users ADD COLUMN phone_number VARCHAR(32)"
+                    if settings.database_url.startswith("postgresql"):
+                        statement = "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(32)"
+                    conn.exec_driver_sql(statement)
+                    logger.info("Coluna 'phone_number' adicionada na tabela 'users'.")
 
-            columns = {column["name"] for column in inspector.get_columns("users")}
-            if "phone_number" in columns:
-                return
-
-            logger.warning("Coluna 'phone_number' ausente na tabela 'users'. Aplicando ajuste automatico.")
-
-            statement = "ALTER TABLE users ADD COLUMN phone_number VARCHAR(32)"
-            if settings.database_url.startswith("postgresql"):
-                statement = "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(32)"
-
-            conn.exec_driver_sql(statement)
-            logger.info("Coluna 'phone_number' adicionada na tabela 'users'.")
+            if "signatures" in table_names:
+                signature_columns = {column["name"] for column in inspector.get_columns("signatures")}
+                if "field_values" not in signature_columns:
+                    logger.warning("Coluna 'field_values' ausente na tabela 'signatures'. Aplicando ajuste automático.")
+                    statement = "ALTER TABLE signatures ADD COLUMN field_values JSON"
+                    if settings.database_url.startswith("postgresql"):
+                        statement = "ALTER TABLE signatures ADD COLUMN IF NOT EXISTS field_values JSONB"
+                    conn.exec_driver_sql(statement)
+                    logger.info("Coluna 'field_values' adicionada na tabela 'signatures'.")
     except SQLAlchemyError as exc:  # pragma: no cover - best effort safeguard
         logger.error("Falha ao ajustar esquema do banco: %s", exc)

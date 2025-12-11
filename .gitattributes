@@ -1,2 +1,22 @@
-*.zip filter=lfs diff=lfs merge=lfs -text
-*.exe filter=lfs diff=lfs merge=lfs -text
+# === PASTAS DE ARQUIVOS GERADOS (NUNCA SUBEM NO GIT) ===
+_storage/
+log/
+dev.db
+temp*.txt
+
+# === PASTAS DO AGENTE DE ASSINATURA (binários, debug) ===
+backend/signing-agent-prototype/**/bin/
+backend/signing-agent-prototype/**/obj/
+backend/signing-agent-prototype/.vs/
+*.suo
+*.dll
+*.pdb
+*.exe
+
+# === OUTROS LIXOS COMUNS ===
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+.env.local

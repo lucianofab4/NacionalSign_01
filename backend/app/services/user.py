@@ -32,19 +32,6 @@ class UserService:
         normalized_email = payload.email.strip().lower()
         normalized_cpf = payload.cpf.strip() if payload.cpf else ""
 
-        existing_email = self.session.exec(
-            select(User).where(User.email == normalized_email)
-        ).first()
-        if existing_email:
-            raise ValueError("Já existe um usuário com este e-mail.")
-
-        if normalized_cpf:
-            existing_cpf = self.session.exec(
-                select(User).where(User.cpf == normalized_cpf)
-            ).first()
-            if existing_cpf:
-                raise ValueError("Já existe um usuário com este CPF.")
-
         subscription = self.session.exec(
             select(Subscription).where(Subscription.tenant_id == tenant_uuid)
         ).first()
@@ -57,6 +44,19 @@ class UserService:
                 current_users = int(total_users or 0)
                 if current_users >= plan.user_quota:
                     raise ValueError("User quota exceeded for current plan")
+
+        existing_email = self.session.exec(
+            select(User).where(User.email == normalized_email)
+        ).first()
+        if existing_email:
+            raise ValueError("Já existe um usuário com este e-mail.")
+
+        if normalized_cpf:
+            existing_cpf = self.session.exec(
+                select(User).where(User.cpf == normalized_cpf)
+            ).first()
+            if existing_cpf:
+                raise ValueError("Já existe um usuário com este CPF.")
 
         user = User(
             tenant_id=tenant_uuid,

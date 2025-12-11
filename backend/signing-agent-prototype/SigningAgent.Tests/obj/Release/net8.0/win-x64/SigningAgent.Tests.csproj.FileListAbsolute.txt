@@ -1,0 +1,7 @@
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\bin\Release\net8.0\win-x64\CoverletSourceRootsMapping_SigningAgent.Tests
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Release\net8.0\win-x64\SigningAgent.Tests.csproj.AssemblyReference.cache
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Release\net8.0\win-x64\SigningAgent.Tests.GeneratedMSBuildEditorConfig.editorconfig
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Release\net8.0\win-x64\SigningAgent.Tests.AssemblyInfoInputs.cache
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Release\net8.0\win-x64\SigningAgent.Tests.AssemblyInfo.cs
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Release\net8.0\win-x64\SigningAgent.Tests.csproj.CoreCompileInputs.cache
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Release\net8.0\win-x64\SigningAgent.Tests.sourcelink.json

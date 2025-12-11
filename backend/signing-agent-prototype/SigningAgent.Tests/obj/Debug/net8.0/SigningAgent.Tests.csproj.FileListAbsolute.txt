@@ -120,3 +120,4 @@ C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\bin\Debug\net
 C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\bin\Debug\net8.0\Microsoft.DotNet.PlatformAbstractions.dll
 C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\bin\Debug\net8.0\Microsoft.Extensions.DependencyModel.dll
 C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\bin\Debug\net8.0\itext.bouncy-castle-adapter.dll
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.Tests\obj\Debug\net8.0\SigningAgent.Tests.sourcelink.json

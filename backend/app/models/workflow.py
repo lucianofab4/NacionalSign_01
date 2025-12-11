@@ -100,6 +100,7 @@ class Signature(UUIDModel, TimestampedModel, table=True):
     reason: str | None = Field(default=None)
     typed_name: str | None = Field(default=None, max_length=256)
     typed_name_hash: str | None = Field(default=None, max_length=128, index=True)
+    field_values: dict | None = Field(default=None, sa_type=JSON)
     evidence_options: dict | None = Field(default=None, sa_type=JSON)
     consent_given: bool = Field(default=False)
     consent_text: str | None = Field(default=None)

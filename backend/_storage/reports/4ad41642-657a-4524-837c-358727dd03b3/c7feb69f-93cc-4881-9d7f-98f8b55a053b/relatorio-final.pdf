@@ -1,0 +1,131 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (NacionalSign Fallback)
+/Author (anonymous)
+/CreationDate (D\07220251211135103\05503\04700\047)
+/Creator (ReportLab PDF Library \055 www\056reportlab\056com)
+/Keywords ()
+/ModDate (D\07220251211135103\05503\04700\047)
+/Subject (unspecified)
+/Title (Relat\363rio Contrato)
+/Trapped (\057False)
+/NSDigest (24f31c2e1638d0eed3926f21fd03cbe01817b239232e2d675937a2c22e9fe8ac)
+/NSIssuedAt (2025\05512\05511T16\07251\07203\056513669\05300\07200)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+4 0 obj
+<<
+/Contents 5 0 R
+/MediaBox [ 0 0 612 792 ]
+/Resources <<
+/Font 6 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Length 3276
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+BT 1 0 0 1 72 720 Tm (Relat\363rio de auditoria - Documento Contrato) Tj T* ET
+BT 1 0 0 1 72 706 Tm (Documento ID: c7feb69f-93cc-4881-9d7f-98f8b55a053b) Tj T* ET
+BT 1 0 0 1 72 692 Tm (Status final: completed) Tj T* ET
+BT 1 0 0 1 72 678 Tm (Workflow ID: 150747d3-765c-4843-a06c-4e12842b3215) Tj T* ET
+BT 1 0 0 1 72 664 Tm (Gerado em: 11/12/2025 16:51:03 UTC) Tj T* ET
+BT 1 0 0 1 72 650 Tm  T* ET
+BT 1 0 0 1 72 636 Tm (Participantes:) Tj T* ET
+BT 1 0 0 1 72 622 Tm (- Admin Teste \(signer\)) Tj T* ET
+BT 1 0 0 1 72 608 Tm (  Email: ac4ec84d_workflow@example.com | Telefone: -) Tj T* ET
+BT 1 0 0 1 72 594 Tm (  Status: pending) Tj T* ET
+BT 1 0 0 1 72 580 Tm  T* ET
+BT 1 0 0 1 72 566 Tm (Solicita\347\365es:) Tj T* ET
+BT 1 0 0 1 72 552 Tm (- Solicita\347\343o e5fece44-3788-4bd1-afd0-0fe267ae91c5) Tj T* ET
+BT 1 0 0 1 72 538 Tm (  Parte: Admin Teste) Tj T* ET
+BT 1 0 0 1 72 524 Tm (  Status: signed) Tj T* ET
+BT 1 0 0 1 72 510 Tm (  Canal: email) Tj T* ET
+BT 1 0 0 1 72 496 Tm (  Emitido em: 11/12/2025 16:51:00 UTC) Tj T* ET
+BT 1 0 0 1 72 482 Tm (    - A\347\343o: assinatura) Tj T* ET
+BT 1 0 0 1 72 468 Tm (      Data: 11/12/2025 16:51:03 UTC if signature.signed_at else '-') Tj T* ET
+BT 1 0 0 1 72 454 Tm (      IP: testclient) Tj T* ET
+BT 1 0 0 1 72 440 Tm  T* ET
+BT 1 0 0 1 72 426 Tm (Eventos de auditoria:) Tj T* ET
+BT 1 0 0 1 72 412 Tm (- 11/12/2025 16:51:00 UTC - document_created) Tj T* ET
+BT 1 0 0 1 72 398 Tm (  Detalhes: {"document": "Contrato", "area_id": "622caf40-cc3d-4101-a9cd-d52d5d611fcb"}) Tj T* ET
+BT 1 0 0 1 72 384 Tm  T* ET
+BT 1 0 0 1 72 370 Tm (- 11/12/2025 16:51:00 UTC - document_version_uploaded) Tj T* ET
+BT 1 0 0 1 72 356 Tm (  Detalhes: {"version_id": "67376e26-6a08-4246-9c62-b6a7fde7fd6a", "file": "contrato.pdf"}) Tj T* ET
+BT 1 0 0 1 72 342 Tm  T* ET
+BT 1 0 0 1 72 328 Tm (- 11/12/2025 16:51:00 UTC - document_party_added) Tj T* ET
+BT 1 0 0 1 72 314 Tm (  Detalhes: {"party_id": "53e062cc-6537-49b6-bcda-2cd727038c27", "role": "signer"}) Tj T* ET
+BT 1 0 0 1 72 300 Tm  T* ET
+BT 1 0 0 1 72 286 Tm (- 11/12/2025 16:51:00 UTC - notification_attempt) Tj T* ET
+BT 1 0 0 1 72 272 Tm (  Detalhes: {"request_id": "e5fece44-3788-4bd1-afd0-0fe267ae91c5", "party_email": "ac4ec84d_workflow@example.com", "channel": "email"}) Tj T* ET
+BT 1 0 0 1 72 258 Tm  T* ET
+BT 1 0 0 1 72 244 Tm (- 11/12/2025 16:51:03 UTC - notification_sent) Tj T* ET
+BT 1 0 0 1 72 230 Tm (  Detalhes: {"request_id": "e5fece44-3788-4bd1-afd0-0fe267ae91c5", "party_email": "ac4ec84d_workflow@example.com", "channel": "email", "action_link": "http://localhost:5173/public/sign/fGXhq8V4cUu4kJ-0dzaxUWfssjDvTDc99fNJGVMGExs", "deadline_at": null}) Tj T* ET
+BT 1 0 0 1 72 216 Tm  T* ET
+BT 1 0 0 1 72 202 Tm (- 11/12/2025 16:51:03 UTC - workflow_dispatched) Tj T* ET
+BT 1 0 0 1 72 188 Tm (  Detalhes: {"workflow_id": "150747d3-765c-4843-a06c-4e12842b3215"}) Tj T* ET
+BT 1 0 0 1 72 174 Tm  T* ET
+BT 1 0 0 1 72 160 Tm (- 11/12/2025 16:51:03 UTC - signature_evidence_captured) Tj T* ET
+BT 1 0 0 1 72 146 Tm (  Detalhes: {"signature_id": "b7de6db2-a5c8-48ce-95fe-2a60ff775485", "request_id": "e5fece44-3788-4bd1-afd0-0fe267ae91c5", "options": {"typed_name": false, "signature_image": false, "signature_draw": false}}) Tj T* ET
+BT 1 0 0 1 72 132 Tm  T* ET
+ 
+
+endstream
+endobj
+6 0 obj
+<<
+/F1 7 0 R
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000484 00000 n 
+0000000543 00000 n 
+0000000592 00000 n 
+0000000781 00000 n 
+0000004109 00000 n 
+0000004140 00000 n 
+trailer
+<<
+/Size 8
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+4247
+%%EOF

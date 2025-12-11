@@ -399,6 +399,7 @@ def _build_version_read(
         else None
     )
     icp_public_report_url = f"/public/verification/{document.id}/report" if icp_signed else None
+    preview_url = f"/api/v1/documents/{document.id}/versions/{version.id}/content"
 
     # ✅ Retorno completo atualizado
     return DocumentVersionRead(
@@ -420,6 +421,7 @@ def _build_version_read(
         icp_public_report_url=icp_public_report_url,
         icp_signature_bundle_available=has_pkcs7 or None,
         fields=field_payload,
+        preview_url=preview_url,
     )
 
 @router.get("", response_model=List[DocumentRead])
@@ -639,7 +641,8 @@ def list_parties(
 async def upload_version(
     document_id: UUID,
     request: Request,
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] | None = File(default=None),
+    file: UploadFile | None = File(default=None),
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> DocumentVersionRead:
@@ -648,7 +651,11 @@ async def upload_version(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    upload_items: list[UploadFile] = [item for item in files if item is not None]
+    upload_items: list[UploadFile] = []
+    if files:
+        upload_items.extend([item for item in files if item is not None])
+    if file:
+        upload_items.append(file)
 
     try:
         version = await document_service.add_version(document, current_user.id, upload_items)
@@ -758,6 +765,42 @@ def get_document_version(
     if not version or version.document_id != document.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
     return _build_version_read(session, document_service, document, version)
+
+
+@router.get("/{document_id}/versions/{version_id}/content")
+def get_document_version_content(
+    document_id: UUID,
+    version_id: UUID,
+    download: bool = False,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Response:
+    document_service, _ = _services(session)
+    document = document_service.get_document(current_user.tenant_id, document_id)
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    version = session.get(DocumentVersion, version_id)
+    if not version or version.document_id != document.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+    if not version.storage_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version file unavailable")
+
+    storage = get_storage()
+    try:
+        pdf_bytes = storage.load_bytes(version.storage_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo n\u00e3o encontrado.") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha ao carregar o arquivo.") from exc
+
+    filename = _resolve_signed_filename(version)
+    disposition = "attachment" if download else "inline"
+    media_type = version.mime_type or "application/pdf"
+    return Response(
+        pdf_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
+    )
 
 
 @router.get("/{document_id}/versions/{version_id}/fields", response_model=List[DocumentFieldRead])

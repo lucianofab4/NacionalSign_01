@@ -1,19 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams } from "react-router-dom";
+import { Document, Page } from "react-pdf";
 import axios from "axios";
 import toast from "react-hot-toast";
 
 import {
   fetchPublicMeta,
+  fetchPublicDocumentFields,
   postPublicSign,
   startPublicAgentSession,
   completePublicAgentSession,
-  fetchPublicAgentCertificates,
   type PublicMeta,
   type SigningCertificate,
+  type DocumentField,
 } from "../api";
-import { signPdfWithLocalAgent } from "../utils/agent";
+import { fetchLocalAgentCertificates, signPdfWithLocalAgent, type AgentCertificate } from "../utils/agent";
 import { resolveApiBaseUrl } from "../utils/env";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+import "../utils/pdfWorker";
 
 const resolveAgentDownloadUrl = () => {
   const envUrl = (import.meta as any).env?.VITE_SIGNING_AGENT_DOWNLOAD_URL as string | undefined;
@@ -27,12 +32,23 @@ const extractErrorMessage = (err: unknown): string => {
     if (detail && typeof detail === "object" && "error" in detail) {
       return String(detail.error);
     }
-    return err.message || "Falha ao processar a solicitação.";
+    return err.message || "Falha ao processar a solicita?§?£o.";
   }
   return err instanceof Error ? err.message : "Falha inesperada.";
 };
 
 const normalizeDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
+
+const mapAgentCertificates = (items: AgentCertificate[]): SigningCertificate[] =>
+  items.map((item, index) => ({
+    index: item.index ?? index,
+    subject: item.subject,
+    issuer: item.issuer,
+    serial_number: item.serialNumber,
+    thumbprint: item.thumbprint,
+    not_before: item.notBefore,
+    not_after: item.notAfter,
+  }));
 
 const filterCertificatesByTaxId = (items: SigningCertificate[], taxId?: string | null): SigningCertificate[] => {
   const target = normalizeDigits(taxId);
@@ -58,19 +74,93 @@ export default function PublicSignaturePage() {
   const [certError, setCertError] = useState<string | null>(null);
   const [selectedCertIndex, setSelectedCertIndex] = useState<number | null>(null);
   const [agentSigning, setAgentSigning] = useState(false);
+  const [fields, setFields] = useState<DocumentField[]>([]);
+  const [fieldsLoading, setFieldsLoading] = useState(false);
+  const [fieldsError, setFieldsError] = useState<string | null>(null);
+  const [pdfScale, setPdfScale] = useState(1);
+  const [numPages, setNumPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [renderedSize, setRenderedSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [typedName, setTypedName] = useState("");
+  const [typedNameTouched, setTypedNameTouched] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [confirmPhoneLast4, setConfirmPhoneLast4] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [signatureImageData, setSignatureImageData] = useState<string | null>(null);
+  const [signatureImageMime, setSignatureImageMime] = useState<string | null>(null);
+  const [signatureImageName, setSignatureImageName] = useState<string | null>(null);
+  const [signatureImagePreview, setSignatureImagePreview] = useState<string | null>(null);
+  const [signatureImageInputKey, setSignatureImageInputKey] = useState(0);
+  const [signatureConsent, setSignatureConsent] = useState(false);
+  const [signatureModalOpen, setSignatureModalOpen] = useState(false);
+  const [currentSigningField, setCurrentSigningField] = useState<DocumentField | null>(null);
+  const [fieldSignatureMap, setFieldSignatureMap] = useState<Record<string, { mode: string; preview?: string; value?: string }>>({});
 
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
   const agentDownloadUrl = useMemo(() => resolveAgentDownloadUrl(), []);
   const previewUrl = useMemo(() => {
     if (!token) return null;
-    return `${apiBaseUrl}/public/signatures/${encodeURIComponent(token)}/page`;
+    return `${apiBaseUrl}/public/signatures/${encodeURIComponent(token)}/preview`;
   }, [apiBaseUrl, token]);
+  const documentSource = useMemo(() => (previewUrl ? { url: previewUrl } : null), [previewUrl]);
+  const imageUploadRef = useRef<HTMLInputElement | null>(null);
 
   const requiresCertificate = Boolean(meta?.requires_certificate);
+  const requiresEmailConfirmation = Boolean(meta?.requires_email_confirmation);
+  const requiresPhoneConfirmation = Boolean(meta?.requires_phone_confirmation);
+  const collectTypedName = Boolean(meta?.collect_typed_name);
+  const typedNameIsRequired = Boolean(meta?.typed_name_required);
+  const collectSignatureImage = Boolean(meta?.collect_signature_image);
+  const signatureImageIsRequired = Boolean(meta?.signature_image_required);
+  const requiresConsent = Boolean(meta?.requires_consent);
+  const consentText = meta?.consent_text ?? "Autorizo o uso da minha imagem e dados pessoais para fins de assinatura eletrnica.";
+  const consentVersion = meta?.consent_version ?? "v1";
+  const availableFields = meta?.available_fields ?? [];
+  const pageFields = useMemo(
+    () => fields.filter(field => Number(field.page ?? 1) === currentPage),
+    [fields, currentPage],
+  );
+  const hasFields = fields.length > 0;
+
+  useEffect(() => {
+    if (collectTypedName) {
+      setTypedName(prev => {
+        if (typedNameTouched) {
+          return prev;
+        }
+        const fallback = meta?.signer_name?.trim() ?? "";
+        if (!prev.trim() && fallback) {
+          return fallback;
+        }
+        return prev;
+      });
+    } else {
+      setTypedName("");
+      setTypedNameTouched(false);
+    }
+  }, [collectTypedName, meta?.signer_name, typedNameTouched]);
+
+  useEffect(() => {
+    if (!requiresEmailConfirmation) {
+      setConfirmEmail("");
+    }
+  }, [requiresEmailConfirmation]);
+
+  useEffect(() => {
+    if (!requiresPhoneConfirmation) {
+      setConfirmPhoneLast4("");
+    }
+  }, [requiresPhoneConfirmation]);
+
+  useEffect(() => {
+    if (!requiresConsent) {
+      setSignatureConsent(false);
+    }
+  }, [requiresConsent]);
 
   useEffect(() => {
     if (!token) {
-      setError("Token inválido.");
+      setError("Token inv?¡lido.");
       setLoading(false);
       return;
     }
@@ -80,9 +170,9 @@ export default function PublicSignaturePage() {
         setMeta(data);
       } catch (err: unknown) {
         if (axios.isAxiosError(err) && err.response?.status === 404) {
-          setError("Link de assinatura inválido ou expirado. Solicite um novo e-mail.");
+          setError("Link de assinatura inv?¡lido ou expirado. Solicite um novo e-mail.");
         } else {
-          setError("Não foi possível carregar os dados da assinatura.");
+          setError("N?£o foi poss?­vel carregar os dados da assinatura.");
         }
       } finally {
         setLoading(false);
@@ -90,27 +180,294 @@ export default function PublicSignaturePage() {
     })();
   }, [token]);
 
+  const handleDocumentLoadSuccess = ({ numPages: nextNumPages }: { numPages?: number }) => {
+    const resolved = nextNumPages || 1;
+    setNumPages(resolved);
+    setCurrentPage(prev => (prev > resolved ? resolved : prev));
+  };
+
+  const handlePageRender = (page: any) => {
+    try {
+      const viewport = page.getViewport({ scale: pdfScale });
+      setRenderedSize({ width: viewport.width, height: viewport.height });
+    } catch {
+      setRenderedSize(prev => ({ ...prev }));
+    }
+  };
+
+  const handlePrevPage = () => setCurrentPage(prev => Math.max(1, prev - 1));
+  const handleNextPage = () => setCurrentPage(prev => Math.min(numPages, prev + 1));
+
+  useEffect(() => {
+    if (!token) {
+      setFields([]);
+      return;
+    }
+    setFieldsLoading(true);
+    setFieldsError(null);
+    setCurrentPage(1);
+    fetchPublicDocumentFields(token)
+      .then(response => setFields(response ?? []))
+      .catch(() => {
+        setFields([]);
+        setFieldsError("Não foi possível carregar os campos configurados.");
+      })
+      .finally(() => setFieldsLoading(false));
+  }, [token]);
+
+  const readFileAsBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === "string") {
+          const base64 = result.includes(",") ? result.split(",")[1] ?? "" : result;
+          resolve(base64);
+        } else {
+          reject(new Error("Não foi possível ler a imagem."));
+        }
+      };
+      reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+      reader.readAsDataURL(file);
+    });
+
+  useEffect(() => {
+    return () => {
+      if (signatureImagePreview) {
+        URL.revokeObjectURL(signatureImagePreview);
+      }
+    };
+  }, [signatureImagePreview]);
+
+  const handleSignatureImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      handleClearSignatureImage();
+      return;
+    }
+    try {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("Imagem ultrapassa 2 MB. Reduza o tamanho antes de enviar.");
+        return;
+      }
+      const base64 = await readFileAsBase64(file);
+      if (signatureImagePreview) {
+        URL.revokeObjectURL(signatureImagePreview);
+      }
+      setSignatureImageData(base64);
+      setSignatureImageMime(file.type || "image/png");
+      setSignatureImageName(file.name);
+      setSignatureImagePreview(URL.createObjectURL(file));
+      setFormError(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível carregar a imagem da assinatura.");
+    }
+  };
+
+  const handleClearSignatureImage = () => {
+    if (signatureImagePreview) {
+      URL.revokeObjectURL(signatureImagePreview);
+    }
+    setSignatureImageData(null);
+    setSignatureImageMime(null);
+    setSignatureImageName(null);
+    setSignatureImagePreview(null);
+    setSignatureImageInputKey(prev => prev + 1);
+  };
+
   const handleSignElectronically = async () => {
     if (!token) return;
+    if (requiresCertificate) {
+      toast.error("Esta assinatura exige certificado digital.");
+      return;
+    }
+
+    setFormError(null);
+
+    const missingFields = fields.filter(field => {
+      const isSignatureField = ["signature", "signature_image", "typed_name"].includes(field.field_type);
+      const isRequired = Boolean(field.required);
+      const isSigned = Boolean(fieldSignatureMap[field.id]);
+      return isSignatureField && isRequired && !isSigned;
+    });
+
+    if (missingFields.length > 0) {
+      const names = missingFields.map(f => f.label || f.field_type).join(", ");
+      const message = `Preencha os campos obrigatórios: ${names}`;
+      setFormError(message);
+      toast.error(message);
+      return;
+    }
+
+    const payload: any = {
+      action: "sign",
+      signature_type: "electronic",
+      fields: [] as any[],
+    };
+
+    if (collectTypedName) {
+      const value = typedName.trim();
+      if (typedNameIsRequired && value.length < 3) {
+        const message = "Digite seu nome completo para continuar.";
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
+      if (value) {
+        payload.typed_name = value;
+      }
+    }
+
+    if (requiresEmailConfirmation) {
+      const value = confirmEmail.trim();
+      if (!value) {
+        const message = "Confirme o e-mail cadastrado para continuar.";
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
+      payload.confirm_email = value;
+    }
+
+    if (requiresPhoneConfirmation) {
+      const digits = confirmPhoneLast4.replace(/\D/g, "").slice(-4);
+      if (digits.length < 4) {
+        const message = "Informe os 4 últimos dígitos do telefone cadastrado.";
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
+      payload.confirm_phone_last4 = digits;
+    }
+
+    Object.entries(fieldSignatureMap).forEach(([fieldId, sig]) => {
+      const field = fields.find(f => f.id === fieldId);
+      if (!field) return;
+
+      const fieldPayload: any = {
+        field_id: fieldId,
+        field_type: field.field_type,
+      };
+
+      if (sig.mode === "typed" && sig.value) {
+        fieldPayload.typed_name = sig.value;
+      } else if (sig.mode === "image" && sig.preview) {
+        const [, base64 = sig.preview] = sig.preview.split(",");
+        fieldPayload.signature_image = base64;
+        fieldPayload.signature_image_mime = "image/png";
+        fieldPayload.signature_image_name = "signature.png";
+      } else if (sig.mode === "draw") {
+        fieldPayload.typed_name = "Assinatura desenhada";
+      }
+
+      payload.fields.push(fieldPayload);
+    });
+
+    if (collectSignatureImage) {
+      if (!signatureImageData) {
+        const message = signatureImageIsRequired
+          ? "Envie a imagem da assinatura para continuar."
+          : "Selecione a imagem que representa sua assinatura.";
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
+      payload.signature_image = signatureImageData;
+      if (signatureImageMime) {
+        payload.signature_image_mime = signatureImageMime;
+      }
+      if (signatureImageName) {
+        payload.signature_image_name = signatureImageName;
+      }
+    }
+
+    if (requiresConsent) {
+      if (!signatureConsent) {
+        const message = "Autorize o uso da imagem para concluir a assinatura.";
+        setFormError(message);
+        toast.error(message);
+        return;
+      }
+      payload.consent = true;
+      if (consentText) {
+        payload.consent_text = consentText;
+      }
+      if (consentVersion) {
+        payload.consent_version = consentVersion;
+      }
+    }
+
     setBusy(true);
-    setError(null);
     try {
-      await postPublicSign(token, { action: "sign", signature_type: "electronic" });
+      await postPublicSign(token, payload);
       setDone(true);
+      toast.success("Documento assinado com sucesso!");
     } catch (err: unknown) {
-      setError(extractErrorMessage(err));
+      const message = extractErrorMessage(err);
+      setFormError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
   };
 
+  const handleQuickSign = (type: "typed_name" | "draw" | "image", event?: ChangeEvent<HTMLInputElement>) => {
+    if (!currentSigningField) return;
+
+    if (type === "typed_name") {
+      const name = prompt("Digite seu nome completo exatamente como deseja assinar:");
+      if (name) {
+        setFieldSignatureMap(prev => ({
+          ...prev,
+          [currentSigningField.id]: { mode: "typed", value: name },
+        }));
+        toast.success("Assinatura textual aplicada ao campo.");
+        setSignatureModalOpen(false);
+        setCurrentSigningField(null);
+      }
+      return;
+    }
+
+    if (type === "draw") {
+      setFieldSignatureMap(prev => ({
+        ...prev,
+        [currentSigningField.id]: { mode: "draw", value: "Assinatura desenhada" },
+      }));
+      toast.success("Representação de assinatura desenhada registrada.");
+      setSignatureModalOpen(false);
+      setCurrentSigningField(null);
+      return;
+    }
+
+    if (type === "image") {
+      const file = event?.target?.files?.[0];
+      if (!file) {
+        toast.error("Selecione uma imagem para continuar.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = typeof reader.result === "string" ? reader.result : "";
+        setFieldSignatureMap(prev => ({
+          ...prev,
+          [currentSigningField.id]: { mode: "image", preview: base64 },
+        }));
+        toast.success("Imagem da assinatura vinculada ao campo.");
+        setSignatureModalOpen(false);
+        setCurrentSigningField(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const loadCertificates = useCallback(async () => {
-    if (!token) return;
     setCertLoading(true);
     setCertError(null);
     try {
-      const rawList = await fetchPublicAgentCertificates(token);
-      const filtered = filterCertificatesByTaxId(rawList, meta?.signer_tax_id);
+      const agentList = await fetchLocalAgentCertificates();
+      const normalized = mapAgentCertificates(agentList);
+      const filtered = filterCertificatesByTaxId(normalized, meta?.signer_tax_id);
       setCertificates(filtered);
       if (filtered.length > 0) {
         setSelectedCertIndex(filtered[0].index ?? 0);
@@ -128,7 +485,7 @@ export default function PublicSignaturePage() {
     } finally {
       setCertLoading(false);
     }
-  }, [token, meta?.signer_tax_id]);
+  }, [meta?.signer_tax_id]);
 
   const handleOpenCertificateModal = () => {
     if (!token) return;
@@ -152,7 +509,7 @@ export default function PublicSignaturePage() {
     }
     const selectedCert = certificates.find(cert => cert.index === selectedCertIndex);
     if (!selectedCert) {
-      setCertError("Certificado selecionado não está mais disponível.");
+      setCertError("Certificado selecionado n?£o est?¡ mais dispon?­vel.");
       return;
     }
     setAgentSigning(true);
@@ -178,7 +535,7 @@ export default function PublicSignaturePage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6 text-sm text-slate-600">
-        Carregando…
+        Carregandoâ?¦
       </div>
     );
   }
@@ -197,7 +554,7 @@ export default function PublicSignaturePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
         <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-sm text-rose-600 shadow-sm">
-          Dados não disponíveis.
+          Dados n?£o dispon?­veis.
         </div>
       </div>
     );
@@ -207,7 +564,7 @@ export default function PublicSignaturePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
         <div className="max-w-md rounded-2xl border border-emerald-200 bg-white p-6 text-sm text-emerald-700 shadow-sm">
-          Assinatura registrada com sucesso. Você pode fechar esta janela.
+          Assinatura registrada com sucesso. Voc?ª pode fechar esta janela.
         </div>
       </div>
     );
@@ -221,27 +578,138 @@ export default function PublicSignaturePage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Fluxo seguro</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-900">Assinatura do documento</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Confirme os dados e siga o método indicado pelo remetente. O documento pode ser visualizado ao lado.
+              Confirme os dados e siga o m?©todo indicado pelo remetente. O documento pode ser visualizado ao lado.
             </p>
           </div>
           <dl className="mt-6 space-y-3 text-sm text-slate-600">
             <div className="flex flex-col">
               <dt className="text-xs uppercase text-slate-500">Documento</dt>
-              <dd className="font-medium text-slate-800">{meta.document_id || "—"}</dd>
+              <dd className="font-medium text-slate-800">{meta.document_id || "â??"}</dd>
             </div>
             <div className="flex flex-col">
               <dt className="text-xs uppercase text-slate-500">Participante</dt>
-              <dd className="font-medium text-slate-800">{meta.participant_id || "—"}</dd>
+              <dd className="font-medium text-slate-800">{meta.participant_id || "â??"}</dd>
             </div>
             <div className="flex flex-col">
               <dt className="text-xs uppercase text-slate-500">Status</dt>
               <dd className="font-medium text-slate-800">{meta.status}</dd>
             </div>
             <div className="flex flex-col">
-              <dt className="text-xs uppercase text-slate-500">Certificado digital obrigatório?</dt>
-              <dd className="font-medium text-slate-800">{requiresCertificate ? "Sim" : "Não"}</dd>
+              <dt className="text-xs uppercase text-slate-500">Certificado digital obrigat?³rio?</dt>
+              <dd className="font-medium text-slate-800">{requiresCertificate ? "Sim" : "N?£o"}</dd>
             </div>
           </dl>
+
+          {!requiresCertificate && (collectTypedName || requiresEmailConfirmation || requiresPhoneConfirmation || collectSignatureImage || requiresConsent) && (
+            <div className="mt-6 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="text-sm font-semibold text-slate-700">Confirme seus dados</h3>
+              <p className="text-xs text-slate-500">
+                Preencha as informações abaixo exatamente como foram cadastradas pelo remetente.
+              </p>
+              {collectTypedName && (
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Nome digitado {typedNameIsRequired ? "(obrigatório)" : "(opcional)"}
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    value={typedName}
+                    onChange={event => {
+                      setTypedName(event.target.value);
+                      setTypedNameTouched(true);
+                    }}
+                    placeholder="Digite seu nome completo"
+                    autoComplete="name"
+                    required={typedNameIsRequired}
+                  />
+                  <span className="mt-1 text-[11px] font-normal text-slate-500">
+                    O nome digitado será registrado no protocolo de auditoria.
+                  </span>
+                </label>
+              )}
+              {requiresEmailConfirmation && (
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Confirme o e-mail cadastrado
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    type="email"
+                    value={confirmEmail}
+                    onChange={event => setConfirmEmail(event.target.value)}
+                    placeholder="nome@empresa.com"
+                    autoComplete="email"
+                    required
+                  />
+                  <span className="mt-1 text-[11px] font-normal text-slate-500">
+                    Utilize o mesmo endereço que recebeu o convite ou o código de acesso.
+                  </span>
+                </label>
+              )}
+              {requiresPhoneConfirmation && (
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Últimos 4 dígitos do telefone
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    value={confirmPhoneLast4}
+                    onChange={event => setConfirmPhoneLast4(event.target.value.replace(/\D/g, "").slice(-4))}
+                    placeholder="0000"
+                    inputMode="numeric"
+                    maxLength={4}
+                    required
+                  />
+                  <span className="mt-1 text-[11px] font-normal text-slate-500">
+                    Informe apenas números para confirmar que você tem acesso ao telefone informado.
+                  </span>
+                </label>
+              )}
+              {collectSignatureImage && (
+                <div className="flex flex-col text-xs font-semibold text-slate-600">
+                  Imagem da assinatura {signatureImageIsRequired ? "(obrigatória)" : "(opcional)"}
+                  <input
+                    key={signatureImageInputKey}
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    className="mt-1 text-sm"
+                    onChange={handleSignatureImageChange}
+                  />
+                  <span className="mt-1 text-[11px] font-normal text-slate-500">
+                    Formatos suportados: PNG ou JPG (máx. 2 MB). A imagem ficará registrada junto ao documento.
+                  </span>
+                  {signatureImagePreview && (
+                    <div className="mt-2 flex items-center gap-3 rounded border border-slate-200 bg-white p-2">
+                      <img
+                        src={signatureImagePreview}
+                        alt="Pré-visualização da assinatura"
+                        className="h-16 max-w-[160px] rounded border border-slate-100 object-contain"
+                      />
+                      <div className="flex flex-col gap-1 text-[11px] font-normal text-slate-500">
+                        <span>{signatureImageName}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs text-rose-600"
+                          onClick={handleClearSignatureImage}
+                        >
+                          Remover imagem
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {requiresConsent && (
+                <label className="flex items-start gap-2 text-xs font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={signatureConsent}
+                    onChange={event => setSignatureConsent(event.target.checked)}
+                    required
+                  />
+                  <span className="font-normal text-slate-600">
+                    {consentText} (versão {consentVersion})
+                  </span>
+                </label>
+              )}
+              {formError && <p className="text-xs text-rose-600">{formError}</p>}
+            </div>
+          )}
 
           <div className="mt-6 space-y-3">
             {requiresCertificate ? (
@@ -274,11 +742,11 @@ export default function PublicSignaturePage() {
               </>
             )}
             <p className="text-xs text-slate-500">
-              Ao continuar você concorda em registrar sua assinatura eletrônica neste documento.
+              Ao continuar voc?ª concorda em registrar sua assinatura eletr?´nica neste documento.
               {agentDownloadUrl ? (
                 <>
                   {" "}
-                  Caso ainda não tenha o agente instalado,{" "}
+                  Caso ainda n?£o tenha o agente instalado,{" "}
                   <a
                     href={agentDownloadUrl}
                     target="_blank"
@@ -294,10 +762,10 @@ export default function PublicSignaturePage() {
           </div>
         </section>
 
-        <section className="flex flex-1 flex-col gap-3">
+                <section className="flex flex-1 flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Visualização do documento
+              Visualizacao do documento
             </h2>
             {previewUrl && (
               <a
@@ -310,18 +778,141 @@ export default function PublicSignaturePage() {
               </a>
             )}
           </div>
-          <div className="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm min-h-[420px]">
-            {previewUrl ? (
-              <iframe
-                key={previewUrl}
-                title="Documento para assinatura"
-                src={previewUrl}
-                className="h-full w-full"
-                allow="clipboard-write; fullscreen"
-              />
+          <div className="flex-1 min-h-[420px] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            {documentSource ? (
+              <div className="flex h-full flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="btn btn-ghost btn-xs" onClick={handlePrevPage} disabled={currentPage <= 1}>
+                      ?
+                    </button>
+                    <span>
+                      Pagina {currentPage}/{numPages}
+                    </span>
+                    <button type="button" className="btn btn-ghost btn-xs" onClick={handleNextPage} disabled={currentPage >= numPages}>
+                      ?
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>Zoom</span>
+                    <input
+                      type="range"
+                      min={75}
+                      max={200}
+                      value={Math.round(pdfScale * 100)}
+                      onChange={event => setPdfScale(Number(event.target.value) / 100)}
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3">
+                  <Document
+                    file={documentSource}
+                    loading="Carregando PDF..."
+                    error="Falha ao carregar PDF."
+                    onLoadSuccess={handleDocumentLoadSuccess}
+                  >
+                    <div className="flex justify-center">
+                      <div
+                        className="relative inline-block"
+                        style={{ width: renderedSize.width || undefined, minWidth: "240px" }}
+                      >
+                        <Page
+                          pageNumber={currentPage}
+                          scale={pdfScale}
+                          renderAnnotationLayer={false}
+                          renderTextLayer={false}
+                          onRenderSuccess={handlePageRender}
+                        />
+                        <div className="absolute inset-0">
+                          {pageFields.map(field => {
+                            const left = (field.x ?? 0) * 100;
+                            const top = (field.y ?? 0) * 100;
+                            const width = (field.width ?? 0) * 100;
+                            const height = (field.height ?? 0) * 100;
+                            const isSignatureField = ["signature", "signature_image", "typed_name"].includes(
+                              field.field_type,
+                            );
+                            const fieldSignature = fieldSignatureMap[field.id];
+
+                            if (!isSignatureField && !fieldSignature) return null;
+
+                            return (
+                              <div
+                                key={field.id}
+                                className={`absolute rounded-lg border-2 transition-all shadow-md z-10 ${
+                                  fieldSignature
+                                    ? "border-emerald-500 bg-emerald-500/20"
+                                    : "cursor-pointer border-rose-500 bg-rose-500/15 hover:bg-rose-500/25 hover:border-rose-600"
+                                }`}
+                                style={{
+                                  left: `${left}%`,
+                                  top: `${top}%`,
+                                  width: `${width}%`,
+                                  height: `${height}%`,
+                                }}
+                                onClick={() => {
+                                  if (!isSignatureField) return;
+                                  setCurrentSigningField(field);
+                                  setSignatureModalOpen(true);
+                                }}
+                              >
+                                <div className="flex h-full w-full items-center justify-center p-1 text-center">
+                                  {fieldSignature ? (
+                                    <span className="text-[10px] font-bold text-emerald-700">
+                                      Assinado ({fieldSignature.mode})
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span className="text-[10px] font-bold text-rose-700 uppercase">
+                                        {field.label || field.field_type.replace("_", " ")}
+                                      </span>
+                                      <span className="block text-[8px] text-rose-600 mt-1">clique para assinar</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </Document>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white/70 p-3 text-sm text-slate-600">
+                  <h3 className="text-xs font-semibold uppercase text-slate-500">Campos configurados</h3>
+                  {fieldsLoading ? (
+                    <p className="mt-2 text-xs">Carregando campos...</p>
+                  ) : fieldsError ? (
+                    <p className="mt-2 text-xs text-rose-600">{fieldsError}</p>
+                  ) : hasFields ? (
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {fields.map(field => (
+                        <li
+                          key={field.id}
+                          className="flex flex-wrap items-center gap-2 rounded border border-slate-100 px-2 py-1"
+                        >
+                          <span className="font-semibold text-slate-800">
+                            {field.label || field.field_type.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-slate-500">Pagina {field.page ?? 1}  {field.field_type}</span>
+                          {field.required ? (
+                            <span className="text-rose-600">Obrigatorio</span>
+                          ) : (
+                            <span className="text-slate-400">Opcional</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs">
+                      Nenhum campo foi definido para o seu papel. A assinatura sera aplicada automaticamente.
+                    </p>
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center p-6 text-sm text-slate-500">
-                Pré-visualização indisponível.
+                Pre-visualizacao indisponivel.
               </div>
             )}
           </div>
@@ -335,7 +926,7 @@ export default function PublicSignaturePage() {
               <div>
                 <h3 className="text-lg font-semibold text-slate-800">Selecionar certificado digital</h3>
                 <p className="text-xs text-slate-500">
-                  Escolha um certificado instalado nesta máquina para continuar com a assinatura.
+                  Escolha um certificado instalado nesta m?¡quina para continuar com a assinatura.
                 </p>
               </div>
               <button
@@ -344,17 +935,17 @@ export default function PublicSignaturePage() {
                 onClick={handleCloseCertificateModal}
                 disabled={agentSigning}
               >
-                ×
+                ??
               </button>
             </div>
             <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
               {certLoading ? (
-                <p className="text-sm text-slate-500">Carregando certificados do agente…</p>
+                <p className="text-sm text-slate-500">Carregando certificados do agenteâ?¦</p>
               ) : certError ? (
                 <p className="text-sm text-rose-600">{certError}</p>
               ) : certificates.length === 0 ? (
                 <p className="text-sm text-slate-500">
-                  Nenhum certificado foi encontrado. Verifique se o agente está em execução e tente novamente.
+                  Nenhum certificado foi encontrado. Verifique se o agente est?¡ em execu?§?£o e tente novamente.
                 </p>
               ) : (
                 certificates.map(cert => (
@@ -378,7 +969,7 @@ export default function PublicSignaturePage() {
                       <p className="font-semibold">{cert.subject}</p>
                       <p className="text-xs text-slate-500">Emissor: {cert.issuer}</p>
                       {cert.serial_number && (
-                        <p className="text-xs text-slate-500">Série: {cert.serial_number}</p>
+                        <p className="text-xs text-slate-500">S?©rie: {cert.serial_number}</p>
                       )}
                       {cert.thumbprint && (
                         <p className="text-xs text-slate-500">Thumbprint: {cert.thumbprint}</p>
@@ -428,6 +1019,67 @@ export default function PublicSignaturePage() {
           </div>
         </div>
       )}
+      {signatureModalOpen && currentSigningField && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-800">Assinar campo</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              {currentSigningField.label || currentSigningField.field_type.replace(/_/g, " ")}
+            </p>
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                onClick={() => handleQuickSign("typed_name")}
+              >
+                Digitar meu nome
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                onClick={() => handleQuickSign("draw")}
+              >
+                Desenhar assinatura
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                onClick={() => imageUploadRef.current?.click()}
+              >
+                Fazer upload da imagem
+              </button>
+              <input
+                ref={imageUploadRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={event => handleQuickSign("image", event)}
+              />
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setSignatureModalOpen(false);
+                  setCurrentSigningField(null);
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+

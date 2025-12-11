@@ -1,0 +1,2 @@
+C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\publish\SigningAgent.pdb
+C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\publish\SigningAgent.exe

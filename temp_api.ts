@@ -1409,11 +1409,6 @@ export interface PublicAgentSessionStartResponse {
   payload: Record<string, unknown>;
 }
 
-export const fetchPublicAgentCertificates = async (token: string): Promise<SigningCertificate[]> => {
-  const response = await api.get(`/public/signatures/${encodeURIComponent(token)}/agent/certificates`);
-  return response.data as SigningCertificate[];
-};
-
 export const signPublicWithAgent = async (
   token: string,
   payload: PublicAgentSignPayload,

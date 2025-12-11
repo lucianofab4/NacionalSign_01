@@ -1,1 +1,359 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+
+// IMPORTAÇÃO CORRETA DO WORKER PARA VITE
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.js?url";
+pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+
+import type { DocumentField, DocumentFieldPayload } from "../api";
+import { getAuthToken } from "../api";
+
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
+type FieldTypeOption = { value: string; label: string };
+
+interface PdfFieldDesignerProps {
+  fileUrl: string | null;
+  roles: string[];
+  fieldTypes: FieldTypeOption[];
+  fields: DocumentField[];
+  onCreateField: (payload: DocumentFieldPayload) => Promise<void> | void;
+  isSaving?: boolean;
+}
+
+interface DraftRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const PdfFieldDesigner = ({
+  fileUrl,
+  roles,
+  fieldTypes,
+  fields,
+  onCreateField,
+  isSaving = false,
+}: PdfFieldDesignerProps) => {
+  const [pdfSource, setPdfSource] = useState<string | null>(null);
+  const [loadingFile, setLoadingFile] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [numPages, setNumPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [scale, setScale] = useState(1);
+  const [renderedSize, setRenderedSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [draftRect, setDraftRect] = useState<DraftRect | null>(null);
+  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>(() => roles[0] ?? "signer");
+  const [selectedType, setSelectedType] = useState<string>(() => fieldTypes[0]?.value ?? "signature");
+
+  useEffect(() => {
+    setSelectedRole(prev => (roles.includes(prev) ? prev : roles[0] ?? "signer"));
+  }, [roles]);
+
+  useEffect(() => {
+    setSelectedType(prev =>
+      fieldTypes.some(type => type.value === prev) ? prev : fieldTypes[0]?.value ?? "signature",
+    );
+  }, [fieldTypes]);
+
+  // ==========================
+  //   CARREGAMENTO DO PDF
+  // ==========================
+  useEffect(() => {
+    if (!fileUrl) {
+      setPdfSource(null);
+      setFileError("Envie o PDF antes de posicionar os campos.");
+      return;
+    }
+
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    const load = async () => {
+      setLoadingFile(true);
+      setFileError(null);
+
+      try {
+        const token = getAuthToken();
+        const response = await fetch(fileUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+
+        if (!response.ok) throw new Error("Não foi possível carregar o PDF.");
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+
+        if (!cancelled) setPdfSource(objectUrl);
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) {
+          setPdfSource(null);
+          setFileError("Falha ao carregar o documento para visualização.");
+        }
+      } finally {
+        if (!cancelled) setLoadingFile(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileUrl]);
+
+  // ==========================
+  //   CAMPOS DA PÁGINA
+  // ==========================
+  const pageFields = useMemo(
+    () => (fields ?? []).filter(f => Number(f.page ?? 1) === currentPage),
+    [fields, currentPage],
+  );
+
+  // ==========================
+  //     DESENHO DO CAMPO
+  // ==========================
+  const normalize = (value: number, min = 0, max = 100) =>
+    Math.min(Math.max(value, min), max);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!overlayRef.current) return;
+    const rect = overlayRef.current.getBoundingClientRect();
+
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    setStartPoint({ x, y });
+    setDraftRect({ x, y, width: 0, height: 0 });
+
+    setIsDrawing(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing || !startPoint || !overlayRef.current) return;
+
+    const rect = overlayRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    setDraftRect({
+      x: startPoint.x,
+      y: startPoint.y,
+      width: x - startPoint.x,
+      height: y - startPoint.y,
+    });
+  };
+
+  const finalizeRect = async () => {
+    if (!isDrawing || !draftRect) {
+      setIsDrawing(false);
+      setDraftRect(null);
+      return;
+    }
+
+    setIsDrawing(false);
+
+    const width = Math.abs(draftRect.width);
+    const height = Math.abs(draftRect.height);
+
+    if (width < 1 || height < 1) {
+      setDraftRect(null);
+      return;
+    }
+
+    const x = draftRect.width < 0 ? draftRect.x + draftRect.width : draftRect.x;
+    const y = draftRect.height < 0 ? draftRect.y + draftRect.height : draftRect.y;
+
+    const payload: DocumentFieldPayload = {
+      role: selectedRole.trim().toLowerCase(),
+      field_type: selectedType,
+      page: currentPage,
+      x: normalize(x) / 100,
+      y: normalize(y) / 100,
+      width: normalize(width) / 100,
+      height: normalize(height) / 100,
+      label: null,
+      required: true,
+    };
+
+    setDraftRect(null);
+    await onCreateField(payload);
+  };
+
+  const handleMouseUp = () => void finalizeRect();
+  const handleMouseLeave = () => isDrawing && void finalizeRect();
+
+  const onPageRender = (page: any) => {
+    const viewport = page.getViewport({ scale });
+    setRenderedSize({ width: viewport.width, height: viewport.height });
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+      {/* HEADER */}
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="text-xs font-semibold text-slate-600 flex flex-col">
+          Papel
+          <select
+            className="mt-1 border rounded px-2 py-1 text-sm"
+            value={selectedRole}
+            onChange={e => setSelectedRole(e.target.value)}
+          >
+            {roles.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs font-semibold text-slate-600 flex flex-col">
+          Tipo de campo
+          <select
+            className="mt-1 border rounded px-2 py-1 text-sm"
+            value={selectedType}
+            onChange={e => setSelectedType(e.target.value)}
+          >
+            {fieldTypes.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs font-semibold text-slate-600 flex flex-col">
+          Zoom
+          <input
+            type="range"
+            min={75}
+            max={200}
+            value={scale * 100}
+            onChange={e => setScale(Number(e.target.value) / 100)}
+            className="mt-1"
+          />
+        </label>
+
+        <div className="text-xs font-semibold text-slate-600 flex items-center gap-2">
+          Página
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            ‹
+          </button>
+          <span className="text-sm">
+            {currentPage}/{numPages}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))}
+            disabled={currentPage === numPages}
+          >
+            ›
+          </button>
+        </div>
+      </div>
+
+      {/* DOCUMENT AREA */}
+      {fileError ? (
+        <div className="rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          {fileError}
+        </div>
+      ) : loadingFile ? (
+        <div className="rounded border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          Carregando documento...
+        </div>
+      ) : !pdfSource ? (
+        <div className="rounded border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          Envie um PDF para posicionar campos.
+        </div>
+      ) : (
+        <div className="overflow-auto border border-dashed border-slate-300 rounded-lg bg-slate-50 p-3">
+          <Document
+            file={pdfSource}
+            onLoadSuccess={({ numPages }) => {
+              setNumPages(numPages || 1);
+              setCurrentPage(p => (p > numPages ? numPages : p));
+            }}
+            error="Falha ao renderizar PDF"
+          >
+            <div className="flex justify-center">
+              <div className="relative inline-block" style={{ width: renderedSize.width || undefined }}>
+                <Page
+                  pageNumber={currentPage}
+                  scale={scale}
+                  onRenderSuccess={onPageRender}
+                  renderAnnotationLayer={false}
+                  renderTextLayer={false}
+                />
+
+                {/* OVERLAY PARA DESENHAR */}
+                <div
+                  ref={overlayRef}
+                  className="absolute inset-0 cursor-crosshair"
+                  style={{ width: renderedSize.width, height: renderedSize.height }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  {/* CAMPOS EXISTENTES */}
+                  {pageFields.map(f => (
+                    <div
+                      key={f.id}
+                      className="absolute border border-indigo-500 bg-indigo-500/10 text-[10px] text-indigo-700 rounded px-1 py-0.5 pointer-events-none"
+                      style={{
+                        left: `${(f.x ?? 0) * 100}%`,
+                        top: `${(f.y ?? 0) * 100}%`,
+                        width: `${(f.width ?? 0) * 100}%`,
+                        height: `${(f.height ?? 0) * 100}%`,
+                      }}
+                    >
+                      {f.role} • {f.field_type}
+                    </div>
+                  ))}
+
+                  {/* RETÂNGULO SENDO DESENHADO */}
+                  {isDrawing && draftRect && (
+                    <div
+                      className="absolute border-2 border-dashed border-emerald-500 bg-emerald-500/10"
+                      style={{
+                        left: `${(draftRect.width < 0
+                          ? draftRect.x + draftRect.width
+                          : draftRect.x)}%`,
+                        top: `${(draftRect.height < 0
+                          ? draftRect.y + draftRect.height
+                          : draftRect.y)}%`,
+                        width: `${Math.abs(draftRect.width)}%`,
+                        height: `${Math.abs(draftRect.height)}%`,
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          </Document>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-500">
+        Arraste o mouse sobre o documento para criar um novo campo.
+      </p>
+
+      {isSaving && <p className="text-xs text-indigo-600">Salvando alterações...</p>}
+    </div>
+  );
+};
+
+export default PdfFieldDesigner;
 

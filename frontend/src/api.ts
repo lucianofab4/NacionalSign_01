@@ -49,7 +49,7 @@ export const setAuthToken = (token?: string) => {
   }
 };
 
-export const getAuthToken = () => authToken;
+export const getAuthToken = () => authToken ?? readTokenFromStorage();
 
 api.interceptors.response.use(
   response => response,
@@ -122,6 +122,17 @@ export interface PublicMeta {
   can_sign?: boolean;
   reason?: string | null;
   signer_tax_id?: string | null;
+  requires_email_confirmation?: boolean;
+  requires_phone_confirmation?: boolean;
+  signature_method?: string;
+  typed_name_required?: boolean;
+  collect_typed_name?: boolean;
+  collect_signature_image?: boolean;
+  signature_image_required?: boolean;
+  requires_consent?: boolean;
+  consent_text?: string | null;
+  consent_version?: string | null;
+  available_fields?: string[] | null;
 }
 
 export const archiveDocument = async (documentId: string, archived = true): Promise<DocumentRecord> => {
@@ -351,6 +362,7 @@ export interface DocumentVersion {
   id: string;
   document_id: string;
   storage_path: string;
+  preview_url?: string | null;
   original_filename: string;
   mime_type: string;
   size_bytes: number;
@@ -411,9 +423,9 @@ export interface DocumentParty {
   allow_signature_image: boolean;
   allow_signature_draw: boolean;
   signature_method?: string | null;
-  /** NEW: força uso de certificado digital para este participante */
+  /** NEW: forÃ§a uso de certificado digital para este participante */
   requires_certificate?: boolean | null;
-  /** Data/hora da assinatura (se já assinou) */
+  /** Data/hora da assinatura (se jÃ¡ assinou) */
   signed_at?: string | null;
   created_at: string;
   updated_at: string | null;
@@ -475,7 +487,7 @@ export interface DocumentPartyPayload {
   company_name?: string | null;
   company_tax_id?: string | null;
   signature_method?: string | null;
-  /** NEW: força uso de certificado digital para este participante */
+  /** NEW: forÃ§a uso de certificado digital para este participante */
   requires_certificate?: boolean | null;
 }
 
@@ -624,7 +636,7 @@ export const fetchPlans = async (): Promise<Plan[]> => {
     return [
       {
         id: 'plan-basic',
-        name: 'Básico',
+        name: 'BÃ¡sico',
         document_quota: 20,
         user_quota: 3,
         price_monthly: 4900,
@@ -766,7 +778,7 @@ export const fetchCustomers = async (): Promise<CustomerSummary[]> => {
         corporate_name: 'Empresa Exemplo LTDA',
         trade_name: 'Empresa Exemplo',
         cnpj: '12345678000190',
-        responsible_name: 'Maria Responsável',
+        responsible_name: 'Maria ResponsÃ¡vel',
         responsible_email: 'maria@example.com',
         responsible_phone: '+55 11 98888-0000',
         plan_id: 'plan-basic',
@@ -822,7 +834,7 @@ export const updateCustomer = async (customerId: string, payload: CustomerUpdate
       ...(await createCustomer({
         corporate_name: payload.corporate_name ?? 'Cliente Mock',
         cnpj: payload.cnpj ?? '00000000000000',
-        responsible_name: payload.responsible_name ?? 'Responsável Mock',
+        responsible_name: payload.responsible_name ?? 'ResponsÃ¡vel Mock',
       })),
       id: customerId,
       trade_name: payload.trade_name ?? null,
@@ -854,7 +866,7 @@ export const fetchCustomerActivationStatus = async (token: string): Promise<Cust
     return {
       corporate_name: 'Empresa Mock',
       trade_name: 'Mock LTDA',
-      responsible_name: 'Responsável Mock',
+      responsible_name: 'ResponsÃ¡vel Mock',
       responsible_email: 'mock@example.com',
       plan_id: mockId(),
       document_quota: 50,
@@ -892,7 +904,7 @@ export const fetchMe = async (): Promise<UserMe> => {
       default_area_id: null,
       email: 'owner@example.com',
       cpf: '12345678901',
-      full_name: 'Usuário Mock',
+      full_name: 'UsuÃ¡rio Mock',
       phone_number: '+55 11 90000-0000',
       profile: 'owner',
       is_active: true,
@@ -918,7 +930,7 @@ export const fetchAreas = async (): Promise<Area[]> => {
   if (isMock) {
     const now = new Date().toISOString();
     return [
-      { id: mockId(), tenant_id: mockId(), name: 'Geral', description: 'Área padrão', is_active: true, created_at: now, updated_at: now },
+      { id: mockId(), tenant_id: mockId(), name: 'Geral', description: 'Ãrea padrÃ£o', is_active: true, created_at: now, updated_at: now },
       { id: mockId(), tenant_id: mockId(), name: 'Financeiro', description: null, is_active: true, created_at: now, updated_at: now },
     ];
   }
@@ -1101,12 +1113,18 @@ export const uploadDocumentVersion = async (documentId: string, files: File | Fi
   }
 
   const form = new FormData();
-  fileList.forEach((file, index) => {
-    const filename = file.name || `arquivo-${index + 1}.pdf`;
-    form.append('files', file, filename);
-  });
-  const primaryName = fileList[0].name || 'documento.pdf';
-  form.append('file', fileList[0], primaryName);
+  if (fileList.length > 1) {
+    fileList.forEach((file, index) => {
+      const filename = file.name || `arquivo-${index + 1}.pdf`;
+      form.append('files', file, filename);
+    });
+  } else {
+    const single = fileList[0];
+    if (single) {
+      const primaryName = single.name || 'documento.pdf';
+      form.append('file', single, primaryName);
+    }
+  }
   const response = await api.post(`/api/v1/documents/${documentId}/versions`, form);
   return response.data as DocumentVersion;
 };
@@ -1172,7 +1190,7 @@ export const fetchDocumentParties = async (documentId: string): Promise<Document
       {
         id: mockId(),
         document_id: documentId,
-        full_name: 'João Assinante',
+        full_name: 'JoÃ£o Assinante',
         email: 'joao@example.com',
         cpf: '12345678901',
         role: 'signer',
@@ -1306,7 +1324,7 @@ export const fetchAuditEvents = async (params: { documentId?: string; eventType?
           document_id: params.documentId ?? mockId(),
           ip_address: '127.0.0.1',
           user_agent: 'mock-agent',
-          details: { info: 'Assinatura concluída' },
+          details: { info: 'Assinatura concluÃ­da' },
         },
       ],
       total: 1,
@@ -1383,9 +1401,26 @@ export const fetchPublicMeta = async (token: string): Promise<PublicMeta> => {
   return response.data as PublicMeta;
 };
 
+export const fetchPublicDocumentFields = async (token: string): Promise<DocumentField[]> => {
+  const response = await api.get(`/public/signatures/${encodeURIComponent(token)}/fields`);
+  return response.data as DocumentField[];
+};
+
 export const postPublicSign = async (
   token: string,
-  body: { action: 'sign'; signature_type: 'digital' | 'electronic' },
+  body: {
+    action: 'sign';
+    signature_type: 'digital' | 'electronic';
+    typed_name?: string;
+    confirm_email?: string;
+    confirm_phone_last4?: string;
+    signature_image?: string;
+    signature_image_mime?: string;
+    signature_image_name?: string;
+    consent?: boolean;
+    consent_text?: string;
+    consent_version?: string;
+  },
 ): Promise<{ ok: boolean; status: string }> => {
   const response = await api.post(`/public/signatures/${encodeURIComponent(token)}`, body);
   return response.data as { ok: boolean; status: string };
@@ -1409,11 +1444,6 @@ export interface PublicAgentSessionStartResponse {
   attempt_id: string;
   payload: Record<string, unknown>;
 }
-
-export const fetchPublicAgentCertificates = async (token: string): Promise<SigningCertificate[]> => {
-  const response = await api.get(`/public/signatures/${encodeURIComponent(token)}/agent/certificates`);
-  return response.data as SigningCertificate[];
-};
 
 export const signPublicWithAgent = async (
   token: string,
@@ -1512,6 +1542,23 @@ export const fetchLatestSignAgentAttempt = async (documentId: string, versionId:
 
 // ===== Templates =====
 
+export const listWorkflowTemplates = async (params?: { area_id?: string | null; include_inactive?: boolean }) => {
+  const response = await api.get('/api/v1/workflows/templates', {
+    params: compactParams(params ?? {}),
+  });
+  return response.data as WorkflowTemplate[];
+};
+
+export const createWorkflowTemplate = async (payload: {
+  area_id: string;
+  name: string;
+  description?: string;
+  steps: WorkflowTemplateStep[];
+}) => {
+  const response = await api.post('/api/v1/workflows/templates', payload);
+  return response.data as WorkflowTemplate;
+};
+
 const templatesEndpoint = '/admin/templates';
 
 const submitTemplateForm = async (form: URLSearchParams) => {
@@ -1531,7 +1578,7 @@ export const fetchTemplates = async (tenantId: Maybe<string>, areaId?: Maybe<str
           id: mockId(),
           tenant_id: tenantId,
           area_id: areaId ?? mockId(),
-          name: 'Fluxo Padrão',
+          name: 'Fluxo PadrÃ£o',
           description: 'Template de exemplo',
           is_active: true,
           steps: [
@@ -1600,14 +1647,14 @@ export const duplicateTemplate = async (tenantId: string, templateId: string, na
 };
 
 /** ========================
- *  NOVO: downloads pós-assinatura
+ *  NOVO: downloads pÃ³s-assinatura
  *  Endpoints sugeridos (ajuste se seu backend usar caminhos diferentes):
  *   - GET /api/v1/documents/:id/signed-artifacts  -> { pdf_url, p7s_urls[], has_digital_signature }
  *   - GET /api/v1/documents/:id/downloads/signed-package (responseType: blob zip)
  * ======================== */
 export interface SignedArtifacts {
-  pdf_url: string;                 // URL para baixar o PDF com marca d'água + protocolo
-  p7s_urls: string[];              // URLs dos .p7s (pode ser vazio se não houver assinatura digital)
+  pdf_url: string;                 // URL para baixar o PDF com marca d'Ã¡gua + protocolo
+  p7s_urls: string[];              // URLs dos .p7s (pode ser vazio se nÃ£o houver assinatura digital)
   has_digital_signature: boolean;  // true se houver ao menos 1 assinatura A1/A3
 }
 

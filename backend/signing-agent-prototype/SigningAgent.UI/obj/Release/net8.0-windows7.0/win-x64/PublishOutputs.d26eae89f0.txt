@@ -1,0 +1,4 @@
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Release\net8.0-windows7.0\win-x64\publish\SigningAgent.UI.pdb
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Release\net8.0-windows7.0\win-x64\publish\SigningAgent.runtimeconfig.json
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Release\net8.0-windows7.0\win-x64\publish\SigningAgent.pdb
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Release\net8.0-windows7.0\win-x64\publish\SigningAgent.UI.exe

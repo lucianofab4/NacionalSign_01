@@ -44,3 +44,4 @@ C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Debug\net8.0
 C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Debug\net8.0-windows7.0\Microsoft.Extensions.DependencyModel.dll
 C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Debug\net8.0-windows7.0\Newtonsoft.Json.dll
 C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\bin\Debug\net8.0-windows7.0\itext.bouncy-castle-adapter.dll
+C:\nacionalSign\backend\signing-agent-prototype\SigningAgent.UI\obj\Debug\net8.0-windows7.0\SigningAgent.UI.sourcelink.json

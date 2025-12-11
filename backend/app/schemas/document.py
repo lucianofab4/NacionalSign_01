@@ -84,6 +84,7 @@ class DocumentVersionRead(IDModel, Timestamped):
     icp_public_report_url: str | None = None
     icp_signature_bundle_available: bool | None = None
     fields: Optional[List["DocumentFieldRead"]] = None
+    preview_url: str | None = None
 
 
 class DocumentVersionUpload(BaseModel):

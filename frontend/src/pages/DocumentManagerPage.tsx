@@ -1,10 +1,11 @@
-
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { isAxiosError } from "axios";
 
 import StepBuilder, { BuilderStep, PartySuggestion } from "../components/StepBuilder";
+import PdfFieldDesigner from "../components/PdfFieldDesigner";
 import { resolveApiBaseUrl } from "../utils/env";
 
 import {
@@ -21,8 +22,11 @@ import {
   fetchAuditEvents,
   dispatchWorkflow,
   resendDocumentNotifications,
-  fetchSigningCertificates, issueSignerShareLink,
+  fetchSigningCertificates,
+  issueSignerShareLink,
   searchContacts,
+  listWorkflowTemplates,
+  createWorkflowTemplate,
   type DocumentRecord,
   type DocumentVersion,
   type DocumentField,
@@ -36,8 +40,10 @@ import {
   type SignAgentErrorDetail,
   type Usage,
   type UserMe,
+  type WorkflowTemplate,
   type WorkflowTemplateStep,
   type SigningCertificate,
+  type DocumentFieldPayload,
   type ContactDirectoryEntry,
 } from "../api";
 
@@ -120,6 +126,35 @@ const formatPhoneDisplay = (value: string) => {
 };
 
 type DocumentListFilter = "all" | "my_pending" | "area_pending";
+type FlowStrategy = "manual" | "template";
+
+const FLOW_STRATEGY_ENTRIES: Array<{
+  id: FlowStrategy;
+  title: string;
+  description: string;
+  bullets: string[];
+}> = [
+  {
+    id: "manual",
+    title: "Fluxo manual",
+    description: "Use quando voc\u00ea ainda n\u00e3o tem um modelo salvo para esta \u00e1rea.",
+    bullets: [
+      "Informe nome do representante, papel/fun\u00e7\u00e3o, e-mail, telefone e tipo de assinatura de cada participante.",
+      "Preencha os campos adicionais j\u00e1 existentes no sistema (empresa, documentos obrigat\u00f3rios, op\u00e7\u00f5es de assinatura, etc.).",
+      "Depois de revisar o fluxo, salve-o como um modelo restrito \u00e0 sua \u00e1rea para reutilizar quando precisar.",
+    ],
+  },
+  {
+    id: "template",
+    title: "Modelo existente",
+    description: "Quando j\u00e1 existe um fluxo padronizado para o seu time.",
+    bullets: [
+      "Escolha um modelo salvo (vis\u00edvel apenas para pessoas da mesma \u00e1rea).",
+      "O sistema carrega automaticamente representantes, pap\u00e9is, forma de assinatura, ordem do fluxo e configura\u00e7\u00f5es j\u00e1 definidas.",
+      "Ainda \u00e9 poss\u00edvel editar, incluir ou remover participantes antes de enviar para assinatura.",
+    ],
+  },
+];
 
 const normalizeRoleValue = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
 
@@ -179,12 +214,33 @@ export default function DocumentManagerPage({
   const [fieldForm, setFieldForm] = useState<FieldFormState>(() => defaultFieldForm());
   const [fieldSaving, setFieldSaving] = useState(false);
 
+  const fieldTypeOptions = useMemo(
+    () => [
+      { value: "signature", label: "Assinatura" },
+      { value: "initials", label: "Rubrica" },
+      { value: "text", label: "Texto" },
+      { value: "typed_name", label: "Nome digitado" },
+      { value: "signature_image", label: "Imagem de assinatura" },
+    ],
+    [],
+  );
+
   const [parties, setParties] = useState<DocumentParty[]>([]);
   const [partyForm, setPartyForm] = useState<PartyFormState>(() => defaultPartyForm());
   const [partyLoading, setPartyLoading] = useState(false);
   const [partySaving, setPartySaving] = useState(false);
   const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
   const [partyError, setPartyError] = useState<string | null>(null);
+
+  const availableRoles = useMemo(() => {
+    const rolesList = parties
+      .map(party => (party.role || "").trim().toLowerCase())
+      .filter(role => role.length > 0);
+    if (!rolesList.includes("signer")) {
+      rolesList.push("signer");
+    }
+    return Array.from(new Set(rolesList));
+  }, [parties]);
   const contactSearchTimeout = useRef<number | null>(null);
   const [contactSuggestions, setContactSuggestions] = useState<ContactDirectoryEntry[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
@@ -210,6 +266,15 @@ export default function DocumentManagerPage({
   const [retryingAgent, setRetryingAgent] = useState(false);
   const [manualFlowSteps, setManualFlowSteps] = useState<BuilderStep[]>([]);
   const [manualFlowDirty, setManualFlowDirty] = useState(false);
+  const [templateOptions, setTemplateOptions] = useState<WorkflowTemplate[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateRoleEditing, setTemplateRoleEditing] = useState<string | null>(null);
   const [hashCopied, setHashCopied] = useState(false);
   const [documentFilter, setDocumentFilter] = useState<DocumentListFilter>("all");
   const [shareCopied, setShareCopied] = useState(false);
@@ -225,6 +290,7 @@ export default function DocumentManagerPage({
   const documentsQuota = usage?.documents_quota ?? null;
   const documentsUsed = usage?.documents_used ?? 0;
   const documentLimitReached = documentsQuota !== null && documentsUsed >= documentsQuota;
+  const usingTemplate = Boolean(selectedTemplateId);
 
   const selectedDocumentId = selectedDocument?.id ?? null;
   const activeVersionId = activeVersion?.id ?? null;
@@ -250,6 +316,11 @@ export default function DocumentManagerPage({
     },
     [apiBaseUrl],
   );
+  const pdfPreviewUrl = useMemo(() => {
+    const source = activeVersion?.preview_url || activeVersion?.storage_path;
+    if (!source) return null;
+    return resolveApiUrl(source);
+  }, [activeVersion, resolveApiUrl]);
 
   const buildStepsFromParties = useCallback(
     (items: DocumentParty[]): BuilderStep[] =>
@@ -558,7 +629,7 @@ export default function DocumentManagerPage({
       if (contactIssues.length === 0) {
         return "Inclua e-mail e telefone conforme o canal escolhido para cada parte.";
       }
-      const summary = contactIssues.slice(0, 2).join("; ");
+      const summary = contactIssues.slice(0, 2).join(" • ");
       const extra = contactIssues.length > 2 ? " (+" + (contactIssues.length - 2) + ")" : "";
       return "Corrija pendencias: " + summary + extra;
     })();
@@ -611,6 +682,50 @@ export default function DocumentManagerPage({
   }, [documentLimitReached, selectedDocument, readinessComplete, contactIssues]);
 
   const canDispatch = !dispatchDisabledReason;
+  const documentReady = Boolean(selectedDocument && activeVersion);
+  const signaturePositionsReady = fields.length > 0;
+  const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
+  const dispatchReady = Boolean(selectedDocument && ["in_progress", "completed"].includes(selectedDocument.status));
+  const activeStrategy: FlowStrategy = usingTemplate ? "template" : "manual";
+  const flowChecklist = useMemo(
+    () => {
+      const setupLabel = usingTemplate ? "2. Modelo aplicado" : "2. Fluxo manual configurado";
+      const setupDescription = usingTemplate
+        ? "Representantes, pap\u00e9is, forma de assinatura e ordem do fluxo carregados automaticamente do modelo escolhido."
+        : "Representantes cadastrados manualmente com papel/fun\u00e7\u00e3o, contatos e tipo de assinatura definidos.";
+      return [
+        {
+          id: "upload",
+          order: 1,
+          label: "1. Documento enviado",
+          description: "O arquivo j\u00e1 foi enviado e est\u00e1 pronto para ter o fluxo configurado.",
+          ready: documentReady,
+        },
+        {
+          id: "flow",
+          order: 2,
+          label: setupLabel,
+          description: setupDescription,
+          ready: flowConfigured,
+        },
+        {
+          id: "positions",
+          order: 3,
+          label: "3. Posi\u00e7\u00f5es das assinaturas",
+          description: "Abra o PDF, marque onde cada assinatura deve ficar e atribua a cada participante.",
+          ready: signaturePositionsReady,
+        },
+        {
+          id: "dispatch",
+          order: 4,
+          label: "4. Enviar para assinatura",
+          description: "Finalize e deixe o sistema disparar automaticamente todas as notifica\u00e7\u00f5es.",
+          ready: dispatchReady,
+        },
+      ];
+    },
+    [documentReady, dispatchReady, flowConfigured, signaturePositionsReady, usingTemplate],
+  );
 
   useEffect(() => {
     if (readinessComplete) {
@@ -664,6 +779,42 @@ export default function DocumentManagerPage({
     [parties],
   );
 
+  const loadTemplates = useCallback(async () => {
+    if (!effectiveAreaId) {
+      setTemplateOptions([]);
+      return;
+    }
+    setTemplateLoading(true);
+    setTemplateError(null);
+    try {
+      const data = await listWorkflowTemplates({ area_id: effectiveAreaId });
+      setTemplateOptions(data ?? []);
+    } catch (error) {
+      console.error(error);
+      let message = "Falha ao carregar modelos.";
+      if (isAxiosError(error)) {
+        message = ((error.response?.data as any)?.detail as string | undefined) ?? message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      setTemplateError(message);
+    } finally {
+      setTemplateLoading(false);
+    }
+  }, [effectiveAreaId]);
+
+  useEffect(() => {
+    if (tenantId) {
+      void loadTemplates();
+    }
+  }, [tenantId, loadTemplates]);
+
+  useEffect(() => {
+    if (!usingTemplate) {
+      setTemplateRoleEditing(null);
+    }
+  }, [usingTemplate]);
+
   const manualFlowRoleWarnings = useMemo(() => {
     if (!manualFlowSteps.length) return [];
     const partyRoleCounts = parties.reduce<Record<string, number>>((acc, party) => {
@@ -697,6 +848,84 @@ export default function DocumentManagerPage({
       deadline_hours: step.deadline_hours ?? null,
     }));
   }, [manualFlowSteps]);
+
+
+  const handleStartRoleParty = useCallback(
+    (role: string) => {
+      setTemplateRoleEditing(role);
+      setEditingPartyId(null);
+      setPartyError(null);
+      const normalizedRole = normalizeRoleValue(role);
+      const nextOrder =
+        parties.filter(item => normalizeRoleValue(item.role) === normalizedRole).length + 1;
+      setPartyForm({
+        ...defaultPartyForm(),
+        role,
+        order_index: nextOrder,
+      });
+      setTimeout(() => {
+        document.getElementById("party-form-anchor")?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+    },
+    [parties],
+  );
+
+  const handleOpenTemplateModal = () => {
+    if (!manualFlowSteps.length) {
+      toast.error("Configure ao menos uma etapa para salvar como modelo.");
+      return;
+    }
+    setTemplateName(selectedDocument ? `${selectedDocument.name} - modelo` : "Novo modelo");
+    setTemplateDescription("");
+    setTemplateModalOpen(true);
+  };
+
+  const handleCloseTemplateModal = () => {
+    if (templateSaving) return;
+    setTemplateModalOpen(false);
+  };
+
+  const handleSubmitTemplate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!effectiveAreaId) {
+      toast.error("Defina a área antes de salvar o modelo.");
+      return;
+    }
+    if (!manualFlowPayload.length) {
+      toast.error("Adicione etapas ao fluxo antes de salvar o modelo.");
+      return;
+    }
+    const trimmedName = templateName.trim();
+    if (!trimmedName) {
+      toast.error("Informe um nome para o modelo.");
+      return;
+    }
+    setTemplateSaving(true);
+    try {
+      await createWorkflowTemplate({
+        area_id: effectiveAreaId,
+        name: trimmedName,
+        description: templateDescription.trim() || undefined,
+        steps: manualFlowPayload,
+      });
+      toast.success("Modelo salvo com sucesso.");
+      setTemplateModalOpen(false);
+      setTemplateName("");
+      setTemplateDescription("");
+      await loadTemplates();
+    } catch (error) {
+      console.error(error);
+      let message = "Falha ao salvar modelo.";
+      if (isAxiosError(error)) {
+        message = ((error.response?.data as any)?.detail as string | undefined) ?? message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      toast.error(message);
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
 
   const normalizedPublicBase = publicBaseUrl.replace(/\/$/, "");
   const isDocumentCompleted = Boolean(selectedDocument && selectedDocument.status === "completed" && activeVersion);
@@ -746,7 +975,7 @@ export default function DocumentManagerPage({
           .filter(([, enabled]) => Boolean(enabled))
           .map(([key]) => key.replace(/_/g, " "));
         if (enabled.length > 0) {
-          rows.push({ label: "Modalidades", value: enabled.join(", ") });
+        rows.push({ label: "Modalidades", value: enabled.join(" • ") });
         }
       }
       if (details.image_filename) {
@@ -764,7 +993,7 @@ export default function DocumentManagerPage({
           details.consent_text ? String(details.consent_text) : null,
         ]
           .filter(Boolean)
-          .join(" € ");
+          .join(" • ");
         rows.push({ label: "Consentimento", value: consentText || "Informado" });
       }
       if (details.consent_given_at) {
@@ -807,6 +1036,109 @@ export default function DocumentManagerPage({
     }));
   };
 
+  const applyTemplateSteps = useCallback(
+    (
+      template: WorkflowTemplate,
+      {
+        resetParties = false,
+        silent = false,
+        markDirty = true,
+      }: { resetParties?: boolean; silent?: boolean; markDirty?: boolean } = {},
+    ) => {
+      if (!template.steps || template.steps.length === 0) {
+        toast.error("Este modelo nao possui etapas configuradas.");
+        return false;
+      }
+
+      const orderedSteps = [...template.steps].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const builderSteps: BuilderStep[] = orderedSteps.map((step, index) => ({
+        id: `${template.id}-${index + 1}`,
+        order: index + 1,
+        role: step.role,
+        action: step.action,
+        execution: step.execution,
+        deadline_hours: step.deadline_hours ?? null,
+        notification_channel: "email",
+      }));
+      setManualFlowSteps(builderSteps);
+      if (markDirty) {
+        setManualFlowDirty(true);
+      }
+      if (resetParties) {
+        setParties([]);
+      }
+
+      const firstRole = builderSteps[0]?.role ?? null;
+      const normalizedFirstRole = normalizeRoleValue(firstRole);
+      const nextOrderForRole =
+        normalizedFirstRole?.length
+          ? parties.filter(item => normalizeRoleValue(item.role) === normalizedFirstRole).length + 1
+          : parties.length + 1;
+      const nextPartyForm = {
+        ...defaultPartyForm(nextOrderForRole),
+        role: firstRole ?? "signer",
+      };
+
+      setTemplateRoleEditing(firstRole);
+      setEditingPartyId(null);
+      setPartyForm(nextPartyForm);
+
+      if (!silent) {
+        toast.success("Modelo aplicado ao fluxo manual.");
+      }
+      return true;
+    },
+    [parties],
+  );
+
+  const handleApplyTemplate = useCallback(() => {
+    if (!selectedTemplateId) {
+      toast.error("Selecione um modelo para aplicar.");
+      return;
+    }
+    const template = templateOptions.find(item => item.id === selectedTemplateId);
+    if (!template) {
+      toast.error("Modelo selecionado nao foi encontrado.");
+      return;
+    }
+    applyTemplateSteps(template, { resetParties: true, silent: false, markDirty: true });
+  }, [applyTemplateSteps, selectedTemplateId, templateOptions]);
+
+  const handleTemplateSelection = useCallback(
+    (value: string) => {
+      setSelectedTemplateId(value);
+      if (!value) {
+        setTemplateRoleEditing(null);
+        setManualFlowSteps([]);
+        setManualFlowDirty(false);
+        return;
+      }
+      const template = templateOptions.find(item => item.id === value);
+      if (!template) {
+        toast.error("Modelo selecionado nao foi encontrado.");
+        return;
+      }
+      applyTemplateSteps(template, { resetParties: false, silent: true, markDirty: true });
+    },
+    [applyTemplateSteps, templateOptions],
+  );
+
+  const handleStrategySelect = useCallback(
+    (strategy: FlowStrategy) => {
+      if (strategy === "manual") {
+        handleTemplateSelection("");
+        return;
+      }
+      if (templateOptions.length === 0) {
+        toast.error("Nenhum modelo disponivel para esta area.");
+        return;
+      }
+      const preferredTemplateId = selectedTemplateId || templateOptions[0].id;
+      handleTemplateSelection(preferredTemplateId);
+    },
+    [handleTemplateSelection, selectedTemplateId, templateOptions],
+  );
+
   const refreshVersion = useCallback(
     async (documentId: string, versionId: string | null) => {
       if (!versionId) {
@@ -848,13 +1180,14 @@ export default function DocumentManagerPage({
       resetPartyForm();
       setManualFlowDirty(false);
       setManualFlowSteps([]);
+      handleTemplateSelection("");
       await Promise.all([
         refreshVersion(doc.id, doc.current_version_id),
         loadParties(doc.id),
         loadAuditEvents(doc.id),
       ]);
     },
-    [loadAuditEvents, loadParties, navigate, refreshVersion, resetPartyForm],
+    [handleTemplateSelection, loadAuditEvents, loadParties, navigate, refreshVersion, resetPartyForm],
   );
 
   useEffect(() => {
@@ -1066,37 +1399,48 @@ export default function DocumentManagerPage({
     setFieldForm(prev => ({ ...prev, [key]: value }));
   };
 
+  const handleCreateField = useCallback(
+    async (payload: DocumentFieldPayload) => {
+      if (!selectedDocument || !activeVersion) {
+        toast.error("Selecione um documento com versão ativa.");
+        return false;
+      }
+      setFieldSaving(true);
+      try {
+        await createDocumentField(selectedDocument.id, activeVersion.id, payload);
+        toast.success("Campo adicionado.");
+        await refreshVersion(selectedDocument.id, activeVersion.id);
+        return true;
+      } catch (error) {
+        console.error(error);
+        toast.error("Falha ao adicionar campo.");
+        return false;
+      } finally {
+        setFieldSaving(false);
+      }
+    },
+    [selectedDocument, activeVersion, refreshVersion],
+  );
+
   const handleAddField = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selectedDocument || !activeVersion) {
-      toast.error("Selecione um documento com versao ativa.");
-      return;
-    }
     if (!fieldForm.role.trim()) {
       toast.error("Informe o papel associado ao campo.");
       return;
     }
-    setFieldSaving(true);
-    try {
-      await createDocumentField(selectedDocument.id, activeVersion.id, {
-        role: fieldForm.role.trim().toLowerCase(),
-        field_type: fieldForm.field_type,
-        page: Number(fieldForm.page),
-        x: Number(fieldForm.x) / 100,
-        y: Number(fieldForm.y) / 100,
-        width: Number(fieldForm.width) / 100,
-        height: Number(fieldForm.height) / 100,
-        label: fieldForm.label.trim() || null,
-        required: fieldForm.required,
-      });
-      toast.success("Campo adicionado.");
+    const success = await handleCreateField({
+      role: fieldForm.role.trim().toLowerCase(),
+      field_type: fieldForm.field_type,
+      page: Number(fieldForm.page),
+      x: Number(fieldForm.x) / 100,
+      y: Number(fieldForm.y) / 100,
+      width: Number(fieldForm.width) / 100,
+      height: Number(fieldForm.height) / 100,
+      label: fieldForm.label.trim() || null,
+      required: fieldForm.required,
+    });
+    if (success) {
       setFieldForm(defaultFieldForm());
-      await refreshVersion(selectedDocument.id, activeVersion.id);
-    } catch (error) {
-      console.error(error);
-      toast.error("Falha ao adicionar campo.");
-    } finally {
-      setFieldSaving(false);
     }
   };
 
@@ -1180,6 +1524,12 @@ export default function DocumentManagerPage({
   const handleEditParty = (party: DocumentParty) => {
     setEditingPartyId(party.id);
     setPartyError(null);
+    if (usingTemplate) {
+      setTemplateRoleEditing(party.role || null);
+      setTimeout(() => {
+        document.getElementById("party-form-anchor")?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+    }
     setPartyForm({
       full_name: party.full_name,
       email: party.email ?? "",
@@ -1205,6 +1555,7 @@ export default function DocumentManagerPage({
 
   const handleCancelEditParty = () => {
     resetPartyForm();
+    setTemplateRoleEditing(null);
   };
 
   const handleDeleteParty = async (partyId: string) => {
@@ -1215,6 +1566,7 @@ export default function DocumentManagerPage({
       toast.success("Parte removida.");
       await loadParties(selectedDocument.id);
       resetPartyForm();
+      setTemplateRoleEditing(null);
     } catch (error) {
       console.error(error);
       toast.error("Falha ao remover parte.");
@@ -1467,6 +1819,8 @@ export default function DocumentManagerPage({
           execution: step.execution,
           deadline_hours: step.deadline_hours ?? null,
         }));
+      } else if (selectedTemplateId) {
+        payload.template_id = selectedTemplateId;
       }
       await dispatchWorkflow(selectedDocument.id, payload);
       toast.success("Solicitacoes de assinatura enviadas.");
@@ -1521,17 +1875,17 @@ export default function DocumentManagerPage({
     if (party.require_cpf) items.push("CPF");
     if (party.require_email) items.push("Email");
     if (party.require_phone) items.push("Telefone");
-    return items.length > 0 ? items.join(", ") : "-";
+    return items.length > 0 ? items.join(" • ") : "-";
   };
 
   const signatureSummary = (party: DocumentParty) => {
     const items: string[] = [];
     const method = (party.signature_method ?? "electronic").toLowerCase();
-    items.push(method === "digital" ? "Certificado digital" : "Assinatura eletrnica");
+    items.push(method === "digital" ? "Certificado digital" : "Assinatura eletrônica");
     if (party.allow_typed_name) items.push("Nome digitado");
     if (party.allow_signature_image) items.push("Imagem");
     if (party.allow_signature_draw) items.push("Desenho");
-    return items.length > 0 ? items.join(", ") : "-";
+    return items.length > 0 ? items.join(" • ") : "-";
   };
   const wrapperClassName = standaloneView ? "mx-auto flex max-w-6xl flex-col gap-6" : "space-y-6";
   const headerContent = standaloneView ? (
@@ -1611,6 +1965,72 @@ export default function DocumentManagerPage({
         </div>
       ) : (
         <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Resumo do fluxo</p>
+                <h2 className="text-lg font-semibold text-slate-800">Gerencie cada etapa ap\u00f3s o envio</h2>
+                <p className="text-sm text-slate-500">
+                  Revise se cada fase descrita na especifica\u00e7\u00e3o \u201cGerenciar Fluxo\u201d foi conclu\u00edda antes de seguir para a pr\u00f3xima.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {flowChecklist.map(step => (
+                  <div key={step.id} className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
+                        step.ready
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+                          : "border-slate-200 bg-slate-50 text-slate-500"
+                      }`}
+                    >
+                      {step.ready ? "OK" : step.order}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{step.label}</p>
+                      <p className="text-xs text-slate-500">{step.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Escolha a forma de configura\u00e7\u00e3o</p>
+                <h2 className="text-lg font-semibold text-slate-800">Modelos ou fluxo manual</h2>
+                <p className="text-sm text-slate-500">
+                  Depois do upload, defina se vai seguir com um modelo salvo da sua \u00e1rea ou se prefere montar todo o fluxo manualmente.
+                </p>
+              </div>
+              <div className="grid gap-3">
+                {FLOW_STRATEGY_ENTRIES.map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => handleStrategySelect(option.id)}
+                    className={`rounded-xl border px-4 py-3 text-left transition ${
+                      activeStrategy === option.id
+                        ? "border-indigo-500 bg-indigo-50 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-indigo-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-800">{option.title}</p>
+                      {activeStrategy === option.id && (
+                        <span className="text-xs font-medium text-indigo-600">Ativo agora</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{option.description}</p>
+                    <ul className="mt-3 list-disc list-inside space-y-1 text-xs text-slate-500">
+                      {option.bullets.map((bullet, index) => (
+                        <li key={`${option.id}-${index}`}>{bullet}</li>
+                      ))}
+                    </ul>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
       <div className={`grid grid-cols-1 gap-6 ${showDocumentList ? "lg:grid-cols-2" : ""}`}>
         {showDocumentList && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200">
@@ -1675,7 +2095,121 @@ export default function DocumentManagerPage({
             </div>
             {selectedDocument ? (
               <div className="p-6 space-y-6">
-                <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handlePartySubmit}>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                  <label className="text-xs font-semibold text-slate-600" htmlFor="template-select-top">
+                    Modelos salvos
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      id="template-select-top"
+                      className="flex-1 min-w-[200px] border border-slate-300 rounded-md px-3 py-2 text-sm"
+                      value={selectedTemplateId}
+                      onChange={event => handleTemplateSelection(event.target.value)}
+                      disabled={templateLoading || templateOptions.length === 0}
+                    >
+                      <option value="">Selecione um modelo</option>
+                      {templateOptions.map(template => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleApplyTemplate}
+                      disabled={!selectedTemplateId || templateLoading}
+                    >
+                      Aplicar modelo
+                    </button>
+                  </div>
+                  <p className='text-[11px] text-slate-400'>
+                    Os modelos ficam visiveis apenas para colaboradores da mesma area. Ajuste qualquer dado antes de prosseguir.
+                  </p>
+                  {templateLoading ? (
+                    <p className="text-xs text-slate-500">Carregando modelos disponíveis...</p>
+                  ) : templateError ? (
+                    <p className="text-xs text-rose-600">{templateError}</p>
+                  ) : templateOptions.length === 0 ? (
+                    <p className="text-xs text-slate-500">Nenhum modelo configurado para esta área.</p>
+                  ) : usingTemplate ? (
+                    <p className="text-xs text-slate-500">
+                      O modelo define os papéis e a ordem do fluxo. Cadastre os representantes abaixo com os dados corretos.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      Escolha um modelo para preencher o fluxo automaticamente ou siga com o cadastro manual.
+                    </p>
+                  )}
+                </div>
+                {usingTemplate && manualFlowSteps.length > 0 && (
+                  <div className="space-y-4">
+                    {manualFlowSteps.map((step, index) => {
+                      const roleLabel = step.role || `papel_${index + 1}`;
+                      const normalizedRole = normalizeRoleValue(step.role);
+                      const roleParties = parties.filter(
+                        party => normalizeRoleValue(party.role) === normalizedRole,
+                      );
+                      return (
+                        <div key={step.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">Papel: {roleLabel}</p>
+                              <p className="text-xs text-slate-500">
+                                Ação: {step.action} · Execução: {step.execution === "parallel" ? "Paralela" : "Sequencial"}
+                              </p>
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              Ordem #{step.order} · Canal padrão: Email
+                            </div>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {roleParties.length === 0 ? (
+                              <p className="text-sm text-slate-500">Nenhum representante cadastrado com este papel.</p>
+                            ) : (
+                              roleParties.map(party => (
+                                <div
+                                  key={party.id}
+                                  className="flex flex-col gap-2 rounded border border-slate-100 px-3 py-2 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
+                                >
+                                  <div>
+                                    <p className="font-medium">{party.full_name}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {party.email || "-"} · {party.phone_number || "-"}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => handleEditParty(party)}>
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs text-rose-600"
+                                      onClick={() => handleDeleteParty(party.id)}
+                                    >
+                                      Remover
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleStartRoleParty(roleLabel)}
+                            >
+                              Adicionar representante
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {(!usingTemplate || templateRoleEditing || editingPartyId) && (
+                  <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handlePartySubmit} id="party-form-anchor">
                   <label className="relative flex flex-col text-sm font-medium text-slate-600">
                     Representante
                     <input
@@ -1700,7 +2234,7 @@ export default function DocumentManagerPage({
                             >
                               <span className="font-medium text-slate-800">{contact.full_name}</span>
                               <span className="text-xs text-slate-500">
-                                {[contact.email, contact.phone_number, contact.company_name].filter(Boolean).join(" • ")}
+                                {[contact.email, contact.phone_number, contact.company_name].filter(Boolean).join(" - ")}
                               </span>
                             </button>
                           ))}
@@ -1894,9 +2428,11 @@ export default function DocumentManagerPage({
                       {partySaving ? 'Salvando...' : editingPartyId ? 'Atualizar parte' : 'Adicionar parte'}
                     </button>
                   </div>
-                </form>
+                  </form>
+                )}
 
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                {!usingTemplate && (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden">
                   {partyLoading ? (
                     <div className="px-4 py-4 text-sm text-slate-500">Carregando partes...</div>
                   ) : parties.length === 0 ? (
@@ -1989,7 +2525,8 @@ export default function DocumentManagerPage({
                       </tbody>
                     </table>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="px-6 py-8 text-sm text-slate-500">
@@ -2012,39 +2549,47 @@ export default function DocumentManagerPage({
               )}
             </div>
             {selectedDocument ? (
-              parties.length === 0 ? (
-                <div className="px-6 py-8 text-sm text-slate-500">
-                  Cadastre ao menos um participante para definir o fluxo manual.
-                </div>
-              ) : (
-                <div className="p-6 space-y-4">
-                  <p className="text-sm text-slate-600">
-                    Ajuste a sequncia dos papis quando optar por enviar este documento sem um template pr-definido.
-                    As etapas abaixo sero consideradas no envio.
-                  </p>
-                  <StepBuilder
-                    value={manualFlowSteps}
-                    onChange={handleManualFlowChange}
-                    partySuggestions={partySuggestions}
-                  />
-                  {manualFlowRoleWarnings.length > 0 && (
-                    <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                      Algumas etapas ainda no possuem partes compatveis: {manualFlowRoleWarnings.join(", ")}.
-                    </div>
-                  )}
-                  <p className="text-xs text-slate-500">
-                    Dica: mantenha o nome do papel igual ao configurado na seo de partes para fazer o pareamento
-                    automaticamente.
-                  </p>
-                </div>
-              )
+              <div className="p-6 space-y-4">
+                {parties.length === 0 && (
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Cadastre ao menos um participante para que o modelo consiga parear automaticamente com os papeis.
+                    Voce ainda pode selecionar ou ajustar um modelo agora e concluir o pareamento depois.
+                  </div>
+                )}
+                <p className="text-sm text-slate-600">
+                  Ajuste a sequencia dos papeis quando optar por enviar este documento sem um modelo pre-definido.
+                  As etapas abaixo serao consideradas no envio.
+                </p>
+                {!usingTemplate && (
+                  <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600">
+                    <span>Depois de definir o fluxo, salve-o como modelo para reutilizar em outros documentos.</span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleOpenTemplateModal}
+                      disabled={manualFlowSteps.length === 0}
+                    >
+                      Salvar fluxo como modelo
+                    </button>
+                  </div>
+                )}
+                <StepBuilder value={manualFlowSteps} onChange={handleManualFlowChange} partySuggestions={partySuggestions} />
+                {manualFlowRoleWarnings.length > 0 && (
+                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Algumas etapas ainda nao possuem partes compatíveis: {manualFlowRoleWarnings.join(" • ")}
+                  </div>
+                )}
+                <p className="text-xs text-slate-500">
+                  Dica: mantenha o nome do papel igual ao configurado na secao de partes para fazer o pareamento automaticamente.
+                </p>
+              </div>
             ) : (
               <div className="px-6 py-8 text-sm text-slate-500">
                 Selecione um documento para configurar o fluxo manual.
               </div>
             )}
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+<div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-700">Campos de assinatura</h2>
               {activeVersion?.icp_signed && (
@@ -2060,6 +2605,14 @@ export default function DocumentManagerPage({
             </div>
             {selectedDocument && activeVersion ? (
               <div className="p-6 space-y-6">
+                <PdfFieldDesigner
+                  fileUrl={pdfPreviewUrl}
+                  roles={availableRoles}
+                  fieldTypes={fieldTypeOptions}
+                  fields={fields}
+                  onCreateField={handleCreateField}
+                  isSaving={fieldSaving}
+                />
                 <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleAddField}>
                   <label className="flex flex-col text-xs font-semibold text-slate-500">
                     Papel (role)
@@ -2311,7 +2864,7 @@ export default function DocumentManagerPage({
                         item.ok ? "text-emerald-600" : "text-amber-500"
                       }`}
                     >
-                      {item.ok ? "œ“" : "€"}
+                      {item.ok ? "✔" : "✖"}
                     </span>
                     <div>
                       <div className="text-sm font-medium text-slate-700">{item.label}</div>
@@ -2766,9 +3319,62 @@ export default function DocumentManagerPage({
           </div>
         </div>
       )}
-        </>
+
+      {templateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+            <form onSubmit={handleSubmitTemplate} className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <h3 className="text-lg font-semibold text-slate-800">Salvar como modelo</h3>
+                <button
+                  type="button"
+                  className="text-slate-500 transition hover:text-slate-700"
+                  onClick={handleCloseTemplateModal}
+                  disabled={templateSaving}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="px-6 space-y-3">
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Nome do modelo
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    value={templateName}
+                    onChange={event => setTemplateName(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Descrição (opcional)
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    value={templateDescription}
+                    onChange={event => setTemplateDescription(event.target.value)}
+                  />
+                </label>
+                <p className="text-xs text-slate-500">
+                  As etapas atuais do fluxo manual serão salvas para reutilização futura. Você ainda poderá ajustar o modelo ao aplicar.
+                </p>
+                <p className="text-xs text-slate-500">
+                  O modelo ficará visível somente para as pessoas da sua área, conforme solicitado na especificação.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCloseTemplateModal} disabled={templateSaving}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={templateSaving || manualFlowPayload.length === 0}>
+                  {templateSaving ? "Salvando..." : "Salvar modelo"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }
 
