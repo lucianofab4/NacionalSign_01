@@ -114,35 +114,6 @@ const formatPhoneDisplay = (value: string) => {
 };
 
 type DocumentListFilter = "all" | "my_pending" | "area_pending";
-<<<<<<< HEAD
-type FlowStrategy = "manual" | "template";
-
-const FLOW_STRATEGY_ENTRIES: Array<{
-  id: FlowStrategy;
-  title: string;
-  description: string;
-  bullets: string[];
-}> = [
-  {
-    id: "manual",
-    title: "Fluxo manual",
-    description: "Use quando voc\u00ea ainda n\u00e3o tem um modelo salvo para esta \u00e1rea.",
-    bullets: [
-      "Informe nome do representante, papel/fun\u00e7\u00e3o, e-mail, telefone e tipo de assinatura de cada participante.",
-      "Preencha os campos adicionais j\u00e1 existentes no sistema (empresa, documentos obrigat\u00f3rios, op\u00e7\u00f5es de assinatura, etc.).",
-      "Depois de revisar o fluxo, salve-o como um modelo restrito \u00e0 sua \u00e1rea para reutilizar quando precisar.",
-    ],
-  },
-  {
-    id: "template",
-    title: "Modelo existente",
-    description: "Quando j\u00e1 existe um fluxo padronizado para o seu time.",
-    bullets: [
-      "Escolha um modelo salvo (vis\u00edvel apenas para pessoas da mesma \u00e1rea).",
-      "O sistema carrega automaticamente representantes, pap\u00e9is, forma de assinatura, ordem do fluxo e configura\u00e7\u00f5es j\u00e1 definidas.",
-      "Ainda \u00e9 poss\u00edvel editar, incluir ou remover participantes antes de enviar para assinatura.",
-    ],
-=======
 type WorkflowTab = "document" | "flow" | "positions" | "dispatch" | "evidence";
 
 const WORKFLOW_TABS: Array<{
@@ -174,7 +145,6 @@ const WORKFLOW_TABS: Array<{
     id: "evidence",
     label: "5. Protocolo",
     description: "Consulte o histórico, protocolos e evidências geradas pelo sistema.",
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   },
 ];
 
@@ -694,55 +664,9 @@ export default function DocumentManagerPage({
 
   const canDispatch = !dispatchDisabledReason;
   const documentReady = Boolean(selectedDocument && activeVersion);
-<<<<<<< HEAD
-  const signaturePositionsReady = fields.length > 0;
-  const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
-  const dispatchReady = Boolean(selectedDocument && ["in_progress", "completed"].includes(selectedDocument.status));
-  const activeStrategy: FlowStrategy = usingTemplate ? "template" : "manual";
-  const flowChecklist = useMemo(
-    () => {
-      const setupLabel = usingTemplate ? "2. Modelo aplicado" : "2. Fluxo manual configurado";
-      const setupDescription = usingTemplate
-        ? "Representantes, pap\u00e9is, forma de assinatura e ordem do fluxo carregados automaticamente do modelo escolhido."
-        : "Representantes cadastrados manualmente com papel/fun\u00e7\u00e3o, contatos e tipo de assinatura definidos.";
-      return [
-        {
-          id: "upload",
-          order: 1,
-          label: "1. Documento enviado",
-          description: "O arquivo j\u00e1 foi enviado e est\u00e1 pronto para ter o fluxo configurado.",
-          ready: documentReady,
-        },
-        {
-          id: "flow",
-          order: 2,
-          label: setupLabel,
-          description: setupDescription,
-          ready: flowConfigured,
-        },
-        {
-          id: "positions",
-          order: 3,
-          label: "3. Posi\u00e7\u00f5es das assinaturas",
-          description: "Abra o PDF, marque onde cada assinatura deve ficar e atribua a cada participante.",
-          ready: signaturePositionsReady,
-        },
-        {
-          id: "dispatch",
-          order: 4,
-          label: "4. Enviar para assinatura",
-          description: "Finalize e deixe o sistema disparar automaticamente todas as notifica\u00e7\u00f5es.",
-          ready: dispatchReady,
-        },
-      ];
-    },
-    [documentReady, dispatchReady, flowConfigured, signaturePositionsReady, usingTemplate],
-  );
-=======
   const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
   const signaturePositionsReady = fields.length > 0;
   const dispatchReady = readinessComplete;
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 
   useEffect(() => {
     if (readinessComplete) {
@@ -1193,25 +1117,6 @@ export default function DocumentManagerPage({
     [applyTemplateSteps, templateOptions],
   );
 
-<<<<<<< HEAD
-  const handleStrategySelect = useCallback(
-    (strategy: FlowStrategy) => {
-      if (strategy === "manual") {
-        handleTemplateSelection("");
-        return;
-      }
-      if (templateOptions.length === 0) {
-        toast.error("Nenhum modelo disponivel para esta area.");
-        return;
-      }
-      const preferredTemplateId = selectedTemplateId || templateOptions[0].id;
-      handleTemplateSelection(preferredTemplateId);
-    },
-    [handleTemplateSelection, selectedTemplateId, templateOptions],
-  );
-
-=======
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const refreshVersion = useCallback(
     async (documentId: string, versionId: string | null) => {
       if (!versionId) {
@@ -1468,13 +1373,6 @@ export default function DocumentManagerPage({
     void performSignWithAgent(selectedCertificateIndex);
   };
 
-<<<<<<< HEAD
-  const handleFieldInput = (key: keyof FieldFormState, value: string | number | boolean) => {
-    setFieldForm(prev => ({ ...prev, [key]: value }));
-  };
-
-=======
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const handleCreateField = useCallback(
     async (payload: DocumentFieldPayload) => {
       if (!selectedDocument || !activeVersion) {
@@ -1497,31 +1395,6 @@ export default function DocumentManagerPage({
     },
     [selectedDocument, activeVersion, refreshVersion],
   );
-<<<<<<< HEAD
-
-  const handleAddField = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!fieldForm.role.trim()) {
-      toast.error("Informe o papel associado ao campo.");
-      return;
-    }
-    const success = await handleCreateField({
-      role: fieldForm.role.trim().toLowerCase(),
-      field_type: fieldForm.field_type,
-      page: Number(fieldForm.page),
-      x: Number(fieldForm.x) / 100,
-      y: Number(fieldForm.y) / 100,
-      width: Number(fieldForm.width) / 100,
-      height: Number(fieldForm.height) / 100,
-      label: fieldForm.label.trim() || null,
-      required: fieldForm.required,
-    });
-    if (success) {
-      setFieldForm(defaultFieldForm());
-    }
-  };
-=======
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 
   const handleDeleteField = async (fieldId: string) => {
     if (!selectedDocument || !activeVersion) return;
@@ -2021,106 +1894,10 @@ export default function DocumentManagerPage({
   ) : null;
   const showDocumentList = !standaloneView && !focusMode && documents.length > 0;
 
-<<<<<<< HEAD
-  return (
-    <div className={wrapperClassName}>
-      {headerContent}
-      {!standaloneView && limitBanner}
-      {!standaloneView && onCreateNew && (
-        <div className="flex justify-end">
-          <button type="button" className="btn btn-primary btn-sm" onClick={onCreateNew}>
-            Novo documento
-          </button>
-        </div>
-      )}
-      {!areaReady && !standaloneView && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Selecione uma area para visualizar e criar documentos.
-        </div>
-      )}
-      {standaloneView && limitBanner}
-
-      {standaloneView && !selectedDocument ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-          {standaloneError ?? (standaloneLoading ? "Carregando documento selecionado..." : "Preparando painel do documento...")}
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Resumo do fluxo</p>
-                <h2 className="text-lg font-semibold text-slate-800">Gerencie cada etapa ap\u00f3s o envio</h2>
-                <p className="text-sm text-slate-500">
-                  Revise se cada fase descrita na especifica\u00e7\u00e3o \u201cGerenciar Fluxo\u201d foi conclu\u00edda antes de seguir para a pr\u00f3xima.
-                </p>
-              </div>
-              <div className="space-y-4">
-                {flowChecklist.map(step => (
-                  <div key={step.id} className="flex items-start gap-3">
-                    <span
-                      className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
-                        step.ready
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-600"
-                          : "border-slate-200 bg-slate-50 text-slate-500"
-                      }`}
-                    >
-                      {step.ready ? "OK" : step.order}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{step.label}</p>
-                      <p className="text-xs text-slate-500">{step.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Escolha a forma de configura\u00e7\u00e3o</p>
-                <h2 className="text-lg font-semibold text-slate-800">Modelos ou fluxo manual</h2>
-                <p className="text-sm text-slate-500">
-                  Depois do upload, defina se vai seguir com um modelo salvo da sua \u00e1rea ou se prefere montar todo o fluxo manualmente.
-                </p>
-              </div>
-              <div className="grid gap-3">
-                {FLOW_STRATEGY_ENTRIES.map(option => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => handleStrategySelect(option.id)}
-                    className={`rounded-xl border px-4 py-3 text-left transition ${
-                      activeStrategy === option.id
-                        ? "border-indigo-500 bg-indigo-50 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-indigo-200"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-800">{option.title}</p>
-                      {activeStrategy === option.id && (
-                        <span className="text-xs font-medium text-indigo-600">Ativo agora</span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">{option.description}</p>
-                    <ul className="mt-3 list-disc list-inside space-y-1 text-xs text-slate-500">
-                      {option.bullets.map((bullet, index) => (
-                        <li key={`${option.id}-${index}`}>{bullet}</li>
-                      ))}
-                    </ul>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-      <div className={`grid grid-cols-1 gap-6 ${showDocumentList ? "lg:grid-cols-2" : ""}`}>
-        {showDocumentList && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-=======
   const renderDocumentTab = () => (
     <div className={`grid grid-cols-1 gap-6 ${showDocumentList ? "lg:grid-cols-2" : ""}`}>
       {showDocumentList && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200">
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
           <div className="px-6 py-4 border-b border-slate-200 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold text-slate-700">Lista de documentos</h2>
             <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -2172,455 +1949,6 @@ export default function DocumentManagerPage({
             </table>
           )}
         </div>
-<<<<<<< HEAD
-        )}
-
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-700">Partes e representantes</h2>
-              {partyLoading && <span className="text-xs text-slate-500">Carregando...</span>}
-            </div>
-            {selectedDocument ? (
-              <div className="p-6 space-y-6">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
-                  <label className="text-xs font-semibold text-slate-600" htmlFor="template-select-top">
-                    Modelos salvos
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <select
-                      id="template-select-top"
-                      className="flex-1 min-w-[200px] border border-slate-300 rounded-md px-3 py-2 text-sm"
-                      value={selectedTemplateId}
-                      onChange={event => handleTemplateSelection(event.target.value)}
-                      disabled={templateLoading || templateOptions.length === 0}
-                    >
-                      <option value="">Selecione um modelo</option>
-                      {templateOptions.map(template => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={handleApplyTemplate}
-                      disabled={!selectedTemplateId || templateLoading}
-                    >
-                      Aplicar modelo
-                    </button>
-                  </div>
-                  <p className='text-[11px] text-slate-400'>
-                    Os modelos ficam visiveis apenas para colaboradores da mesma area. Ajuste qualquer dado antes de prosseguir.
-                  </p>
-                  {templateLoading ? (
-                    <p className="text-xs text-slate-500">Carregando modelos disponíveis...</p>
-                  ) : templateError ? (
-                    <p className="text-xs text-rose-600">{templateError}</p>
-                  ) : templateOptions.length === 0 ? (
-                    <p className="text-xs text-slate-500">Nenhum modelo configurado para esta área.</p>
-                  ) : usingTemplate ? (
-                    <p className="text-xs text-slate-500">
-                      O modelo define os papéis e a ordem do fluxo. Cadastre os representantes abaixo com os dados corretos.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-slate-500">
-                      Escolha um modelo para preencher o fluxo automaticamente ou siga com o cadastro manual.
-                    </p>
-                  )}
-                </div>
-                {usingTemplate && manualFlowSteps.length > 0 && (
-                  <div className="space-y-4">
-                    {manualFlowSteps.map((step, index) => {
-                      const roleLabel = step.role || `papel_${index + 1}`;
-                      const normalizedRole = normalizeRoleValue(step.role);
-                      const roleParties = parties.filter(
-                        party => normalizeRoleValue(party.role) === normalizedRole,
-                      );
-                      return (
-                        <div key={step.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800">Papel: {roleLabel}</p>
-                              <p className="text-xs text-slate-500">
-                                Ação: {step.action} · Execução: {step.execution === "parallel" ? "Paralela" : "Sequencial"}
-                              </p>
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Ordem #{step.order} · Canal padrão: Email
-                            </div>
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            {roleParties.length === 0 ? (
-                              <p className="text-sm text-slate-500">Nenhum representante cadastrado com este papel.</p>
-                            ) : (
-                              roleParties.map(party => (
-                                <div
-                                  key={party.id}
-                                  className="flex flex-col gap-2 rounded border border-slate-100 px-3 py-2 text-sm text-slate-700 md:flex-row md:items-center md:justify-between"
-                                >
-                                  <div>
-                                    <p className="font-medium">{party.full_name}</p>
-                                    <p className="text-xs text-slate-500">
-                                      {party.email || "-"} · {party.phone_number || "-"}
-                                    </p>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => handleEditParty(party)}>
-                                      Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-ghost btn-xs text-rose-600"
-                                      onClick={() => handleDeleteParty(party.id)}
-                                    >
-                                      Remover
-                                    </button>
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handleStartRoleParty(roleLabel)}
-                            >
-                              Adicionar representante
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {(!usingTemplate || templateRoleEditing || editingPartyId) && (
-                  <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handlePartySubmit} id="party-form-anchor">
-                  <label className="relative flex flex-col text-sm font-medium text-slate-600">
-                    Representante
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.full_name}
-                      onChange={event => handleContactNameChange(event.target.value)}
-                      placeholder="Nome completo"
-                    />
-                    {(partyForm.full_name.trim().length >= 3 && (contactSearching || contactSuggestions.length > 0)) && (
-                      <div className="absolute top-full z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
-                        {contactSearching && (
-                          <div className="px-3 py-2 text-xs text-slate-500">Buscando contatos...</div>
-                        )}
-                        {!contactSearching &&
-                          contactSuggestions.map(contact => (
-                            <button
-                              type="button"
-                              key={contact.id}
-                              className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                              onMouseDown={event => event.preventDefault()}
-                              onClick={() => applyContactSuggestion(contact)}
-                            >
-                              <span className="font-medium text-slate-800">{contact.full_name}</span>
-                              <span className="text-xs text-slate-500">
-                                {[contact.email, contact.phone_number, contact.company_name].filter(Boolean).join(" - ")}
-                              </span>
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Papel (role)
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.role}
-                      onChange={event => handlePartyInput('role', event.target.value)}
-                      placeholder="signer"
-                    />
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Email
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      type="email"
-                      value={partyForm.email}
-                      onChange={event => handlePartyInput('email', event.target.value)}
-                      placeholder="representante@empresa.com"
-                    />
-                    {mustHaveEmail ? (
-                      <p className="mt-1 text-xs text-slate-500">Obrigatorio para notificacoes por e-mail.</p>
-                    ) : (
-                      <p className="mt-1 text-xs text-slate-400">Recomendado para registro e auditoria.</p>
-                    )}
-                    {emailHasValue && emailInvalid && (
-                      <p className="mt-1 text-xs text-rose-600">Informe um e-mail valido.</p>
-                    )}
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Telefone
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.phone_number}
-                      onChange={event => handlePartyInput('phone_number', event.target.value)}
-                      placeholder="+55 11 90000-0000"
-                    />
-                    {mustHavePhone ? (
-                      <p className="mt-1 text-xs text-slate-500">Obrigatorio para notificacoes por SMS.</p>
-                    ) : (
-                      <p className="mt-1 text-xs text-slate-400">Recomendado para contato rapido.</p>
-                    )}
-                    {phoneHasValue && phoneInvalid && (
-                      <p className="mt-1 text-xs text-rose-600">Informe um telefone valido com DDD.</p>
-                    )}
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    CPF
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.cpf}
-                      onChange={event => handlePartyInput('cpf', event.target.value)}
-                      placeholder="Somente numeros"
-                    />
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Canal de notificacao
-                    <select
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.notification_channel}
-                      onChange={event =>
-                        handlePartyInput('notification_channel', event.target.value as PartyFormState['notification_channel'])
-                      }
-                    >
-                      <option value="email">Email</option>
-                      <option value="sms">SMS</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Empresa (razao social)
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.company_name}
-                      onChange={event => handlePartyInput('company_name', event.target.value)}
-                      placeholder="Empresa XYZ Ltda"
-                    />
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    CNPJ
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.company_tax_id}
-                      onChange={event => handlePartyInput('company_tax_id', event.target.value)}
-                      placeholder="Somente numeros"
-                    />
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Autenticacao 2FA (opcional)
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.two_factor_type}
-                      onChange={event => handlePartyInput('two_factor_type', event.target.value)}
-                      placeholder="sms, email..."
-                    />
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Ordem
-                    <input
-                      className="mt-1 border rounded px-3 py-2"
-                      type="number"
-                      min={1}
-                      value={partyForm.order_index}
-                      onChange={event => handlePartyInput('order_index', Number(event.target.value) || 1)}
-                    />
-                  </label>
-                  <label className="flex flex-col text-sm font-medium text-slate-600">
-                    Tipo de assinatura
-                    <select
-                      className="mt-1 border rounded px-3 py-2"
-                      value={partyForm.signature_method}
-                      onChange={event => handlePartyInput('signature_method', event.target.value as PartyFormState['signature_method'])}
-                    >
-                      <option value="electronic">Assinatura eletrnica</option>
-                      <option value="digital">Certificado digital (A1/A3)</option>
-                    </select>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Defina se este participante deve assinar com certificado digital (A1/A3) ou assinatura eletrnica.
-                    </p>
-                  </label>
-
-                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="flex flex-col text-sm font-medium text-slate-600 border border-slate-200 rounded-lg p-3">
-                      <span className="text-slate-500 text-xs uppercase">Dados obrigatorios</span>
-                      <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={partyForm.require_cpf}
-                          onChange={event => handlePartyInput('require_cpf', event.target.checked)}
-                        />
-                        CPF
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={partyForm.require_email}
-                          onChange={event => handlePartyInput('require_email', event.target.checked)}
-                        />
-                        Email
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={partyForm.require_phone}
-                          onChange={event => handlePartyInput('require_phone', event.target.checked)}
-                        />
-                        Telefone
-                      </label>
-                    </div>
-                    <div className="flex flex-col text-sm font-medium text-slate-600 border border-slate-200 rounded-lg p-3">
-                      <span className="text-slate-500 text-xs uppercase">Opcoes de assinatura</span>
-                      <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={partyForm.allow_typed_name}
-                          onChange={event => handlePartyInput('allow_typed_name', event.target.checked)}
-                        />
-                        Nome digitado
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={partyForm.allow_signature_image}
-                          onChange={event => handlePartyInput('allow_signature_image', event.target.checked)}
-                        />
-                        Upload de imagem
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={partyForm.allow_signature_draw}
-                          onChange={event => handlePartyInput('allow_signature_draw', event.target.checked)}
-                        />
-                        Assinatura desenhada
-                      </label>
-                    </div>
-                  </div>
-
-                  {partyError && <div className="md:col-span-2 text-xs text-rose-600">{partyError}</div>}
-
-                  <div className="md:col-span-2 flex justify-between items-center">
-                    {editingPartyId && (
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={handleCancelEditParty}>
-                        Cancelar edicao
-                      </button>
-                    )}
-                    <button type="submit" className="btn btn-primary btn-sm" disabled={partySaving}>
-                      {partySaving ? 'Salvando...' : editingPartyId ? 'Atualizar parte' : 'Adicionar parte'}
-                    </button>
-                  </div>
-                  </form>
-                )}
-
-                {!usingTemplate && (
-                  <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  {partyLoading ? (
-                    <div className="px-4 py-4 text-sm text-slate-500">Carregando partes...</div>
-                  ) : parties.length === 0 ? (
-                    <div className="px-4 py-4 text-sm text-slate-500">Nenhuma parte cadastrada para este documento.</div>
-                  ) : (
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Representante</th>
-                          <th className="px-3 py-2 text-left">Empresa</th>
-                          <th className="px-3 py-2 text-left">Canal</th>
-                          <th className="px-3 py-2 text-left">Contato</th>
-                          <th className="px-3 py-2 text-left">Obrigatorios</th>
-                          <th className="px-3 py-2 text-left">Assinatura</th>
-                          <th className="px-3 py-2 text-left">Acoes</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {parties.map(party => {
-                          const channel = (party.notification_channel ?? "email").toLowerCase();
-                          const channelLabel = channel === "sms" ? "SMS" : "Email";
-                          const emailValue = party.email ?? "";
-                          const emailNormalizedValue = normalizeEmail(emailValue);
-                          const emailNeeded = Boolean(party.require_email) || channel === "email";
-                          const emailValid = emailValue ? isEmailValid(emailNormalizedValue) : false;
-                          const phoneValue = party.phone_number ?? "";
-                          const phoneDigits = normalizePhone(phoneValue);
-                          const phoneNeeded = Boolean(party.require_phone) || channel === "sms";
-                          const phoneValid = phoneDigits ? isPhoneValid(phoneDigits) : false;
-                          const phoneDisplay = phoneValue ? formatPhoneDisplay(phoneValue) : "-";
-                          const emailDisplay = emailValue || (emailNeeded ? "Email obrigatorio" : "-");
-                          const phoneDisplayText = phoneDisplay !== "-" ? phoneDisplay : (phoneNeeded ? "Telefone obrigatorio" : "-");
-
-                          return (
-                            <tr
-                              key={party.id}
-                              className={`border-t border-slate-100 ${editingPartyId === party.id ? 'bg-slate-100/80' : ''}`}
-                            >
-                              <td className="px-3 py-2">
-                                <div className="font-medium text-slate-700">{party.full_name}</div>
-                                <div className="text-slate-500">{party.role}</div>
-                                <div className="text-slate-400 text-[11px]">Ordem #{party.order_index}</div>
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">
-                                {party.company_name ? (
-                                  <div>
-                                    <div>{party.company_name}</div>
-                                    <div className="text-slate-400 text-[11px]">CNPJ {party.company_tax_id ?? '-'}</div>
-                                  </div>
-                                ) : (
-                                  '-'
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">{channelLabel}</td>
-                              <td className="px-3 py-2 text-xs text-slate-600 space-y-1">
-                                <div className={emailNeeded && !emailValid ? "text-rose-600" : "text-slate-600"}>
-                                  {emailDisplay}
-                                  {emailValue && !emailValid && <span className="ml-1">(corrigir)</span>}
-                                </div>
-                                <div className={phoneNeeded && !phoneValid ? "text-rose-600" : "text-slate-500"}>
-                                  {phoneDisplayText}
-                                  {phoneDigits && !phoneValid && <span className="ml-1">(corrigir)</span>}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">{requiredSummary(party)}</td>
-                              <td className="px-3 py-2 text-slate-600">{signatureSummary(party)}</td>
-                              <td className="px-3 py-2">
-                                <div className="flex flex-wrap gap-2">
-                                  <button className="btn btn-ghost btn-xs" onClick={() => handleEditParty(party)}>
-                                    Editar
-                                  </button>
-                                  <button
-                                    className="btn btn-ghost btn-xs text-rose-600"
-                                    onClick={() => handleDeleteParty(party.id)}
-                                  >
-                                    Remover
-                                  </button>
-                                  <button
-                                    className="btn btn-ghost btn-xs"
-                                    onClick={() => handleCopySignerLink(party)}
-                                    disabled={copyingPartyLinkId === party.id}
-                                  >
-                                    {copyingPartyLinkId === party.id ? 'Copiando...' : 'Copiar link'}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="px-6 py-8 text-sm text-slate-500">
-                Selecione um documento para configurar as partes e representantes.
-              </div>
-=======
       )}
       {!showDocumentList && !standaloneView && !focusMode && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -2635,176 +1963,10 @@ export default function DocumentManagerPage({
               <span className="text-xs font-medium text-slate-500">
                 Status: <span className="capitalize">{selectedDocument.status.replace("_", " ")}</span>
               </span>
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
             )}
           </div>
           <div className="p-6 space-y-4 text-sm text-slate-600">
             {selectedDocument ? (
-<<<<<<< HEAD
-              <div className="p-6 space-y-4">
-                {parties.length === 0 && (
-                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Cadastre ao menos um participante para que o modelo consiga parear automaticamente com os papeis.
-                    Voce ainda pode selecionar ou ajustar um modelo agora e concluir o pareamento depois.
-                  </div>
-                )}
-                <p className="text-sm text-slate-600">
-                  Ajuste a sequencia dos papeis quando optar por enviar este documento sem um modelo pre-definido.
-                  As etapas abaixo serao consideradas no envio.
-                </p>
-                {!usingTemplate && (
-                  <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600">
-                    <span>Depois de definir o fluxo, salve-o como modelo para reutilizar em outros documentos.</span>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={handleOpenTemplateModal}
-                      disabled={manualFlowSteps.length === 0}
-                    >
-                      Salvar fluxo como modelo
-                    </button>
-                  </div>
-                )}
-                <StepBuilder value={manualFlowSteps} onChange={handleManualFlowChange} partySuggestions={partySuggestions} />
-                {manualFlowRoleWarnings.length > 0 && (
-                  <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Algumas etapas ainda nao possuem partes compatíveis: {manualFlowRoleWarnings.join(" • ")}
-                  </div>
-                )}
-                <p className="text-xs text-slate-500">
-                  Dica: mantenha o nome do papel igual ao configurado na secao de partes para fazer o pareamento automaticamente.
-                </p>
-              </div>
-            ) : (
-              <div className="px-6 py-8 text-sm text-slate-500">
-                Selecione um documento para configurar o fluxo manual.
-              </div>
-            )}
-          </div>
-<div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-700">Campos de assinatura</h2>
-              {activeVersion?.icp_signed && (
-                <button
-                  type="button"
-                  className="text-primary-600 text-sm font-medium hover:underline disabled:opacity-50"
-                  onClick={handleOpenFinalPdf}
-                  disabled={!finalDownloadUrl}
-                >
-                  {hasDetachedSignatures ? 'Baixar pacote (.zip)' : 'Baixar PDF assinado'}
-                </button>
-              )}
-            </div>
-            {selectedDocument && activeVersion ? (
-              <div className="p-6 space-y-6">
-                <PdfFieldDesigner
-                  fileUrl={pdfPreviewUrl}
-                  roles={availableRoles}
-                  fieldTypes={fieldTypeOptions}
-                  fields={fields}
-                  onCreateField={handleCreateField}
-                  isSaving={fieldSaving}
-                />
-                <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleAddField}>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Papel (role)
-                    <input
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.role}
-                      onChange={event => handleFieldInput('role', event.target.value)}
-                      placeholder="signer"
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Tipo
-                    <select
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.field_type}
-                      onChange={event => handleFieldInput('field_type', event.target.value)}
-                    >
-                      <option value="signature">Assinatura</option>
-                      <option value="initials">Rubrica</option>
-                      <option value="text">Texto</option>
-                      <option value="typed_name">Nome digitado</option>
-                      <option value="signature_image">Imagem de assinatura</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Pagina
-                    <input
-                      type="number"
-                      min={1}
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.page}
-                      onChange={event => handleFieldInput('page', Number(event.target.value))}
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Label
-                    <input
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.label}
-                      onChange={event => handleFieldInput('label', event.target.value)}
-                      placeholder="Opcional"
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Posicao X (%)
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.x}
-                      onChange={event => handleFieldInput('x', Number(event.target.value))}
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Posicao Y (%)
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.y}
-                      onChange={event => handleFieldInput('y', Number(event.target.value))}
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Largura (%)
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.width}
-                      onChange={event => handleFieldInput('width', Number(event.target.value))}
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs font-semibold text-slate-500">
-                    Altura (%)
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                      value={fieldForm.height}
-                      onChange={event => handleFieldInput('height', Number(event.target.value))}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                    <input
-                      type="checkbox"
-                      checked={fieldForm.required}
-                      onChange={event => handleFieldInput('required', event.target.checked)}
-                    />
-                    Obrigatorio
-                  </label>
-                  <div className="md:col-span-2 flex justify-end">
-                    <button type="submit" className="btn btn-secondary btn-sm" disabled={fieldSaving}>
-                      {fieldSaving ? 'Adicionando...' : 'Adicionar campo'}
-                    </button>
-=======
               <>
                 <div>
                   <p className="text-xs uppercase text-slate-500">Documento atual</p>
@@ -2814,7 +1976,6 @@ export default function DocumentManagerPage({
                   <div>
                     <dt className="text-xs uppercase text-slate-500">Versão carregada</dt>
                     <dd className="text-sm font-semibold text-slate-700">{activeVersion ? activeVersion.id : "Carregando..."}</dd>
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
                   </div>
                   <div>
                     <dt className="text-xs uppercase text-slate-500">Última atualização</dt>
@@ -3482,17 +2643,8 @@ export default function DocumentManagerPage({
               <ul className="space-y-3">
                 {readinessItems.map(item => (
                   <li key={item.id} className="flex items-start gap-3">
-<<<<<<< HEAD
-                    <span
-                      className={`mt-0.5 text-base font-semibold ${
-                        item.ok ? "text-emerald-600" : "text-amber-500"
-                      }`}
-                    >
-                      {item.ok ? "✔" : "✖"}
-=======
                     <span className={`mt-0.5 text-base font-semibold ${item.ok ? "text-emerald-600" : "text-amber-500"}`}>
                       {item.ok ? "✓" : "!"}
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
                     </span>
                     <div>
                       <div className="text-sm font-medium text-slate-700">{item.label}</div>
@@ -3901,65 +3053,6 @@ export default function DocumentManagerPage({
           </div>
         </div>
       )}
-<<<<<<< HEAD
-
-      {templateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-            <form onSubmit={handleSubmitTemplate} className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                <h3 className="text-lg font-semibold text-slate-800">Salvar como modelo</h3>
-                <button
-                  type="button"
-                  className="text-slate-500 transition hover:text-slate-700"
-                  onClick={handleCloseTemplateModal}
-                  disabled={templateSaving}
-                >
-                  ×
-                </button>
-              </div>
-              <div className="px-6 space-y-3">
-                <label className="flex flex-col text-xs font-semibold text-slate-600">
-                  Nome do modelo
-                  <input
-                    className="mt-1 border rounded px-3 py-2 text-sm"
-                    value={templateName}
-                    onChange={event => setTemplateName(event.target.value)}
-                    required
-                  />
-                </label>
-                <label className="flex flex-col text-xs font-semibold text-slate-600">
-                  Descrição (opcional)
-                  <input
-                    className="mt-1 border rounded px-3 py-2 text-sm"
-                    value={templateDescription}
-                    onChange={event => setTemplateDescription(event.target.value)}
-                  />
-                </label>
-                <p className="text-xs text-slate-500">
-                  As etapas atuais do fluxo manual serão salvas para reutilização futura. Você ainda poderá ajustar o modelo ao aplicar.
-                </p>
-                <p className="text-xs text-slate-500">
-                  O modelo ficará visível somente para as pessoas da sua área, conforme solicitado na especificação.
-                </p>
-              </div>
-              <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
-                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCloseTemplateModal} disabled={templateSaving}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary btn-sm" disabled={templateSaving || manualFlowPayload.length === 0}>
-                  {templateSaving ? "Salvando..." : "Salvar modelo"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
-  )}
-</div>
-);
-=======
     </>
   );
 
@@ -4011,6 +3104,5 @@ export default function DocumentManagerPage({
       {renderModals()}
     </div>
   );
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 }
 
