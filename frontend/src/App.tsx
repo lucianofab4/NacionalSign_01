@@ -330,6 +330,12 @@ function App() {
     changeView('documents');
   };
 
+  const handleGoHome = () => {
+    setDocumentsFocus(null);
+    setView('dashboard');
+    navigate('/', { replace: true });
+  };
+
   const openDocumentCreate = () => {
     setDocumentsFocus(null);
     setView('documents');
@@ -461,6 +467,87 @@ function App() {
             />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isManagingDocument) {
+    const nameLabel = me?.full_name || me?.name || me?.email || 'Usuário';
+    const profileDisplay = profileLabel ? `Perfil: ${profileLabel}` : null;
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <header className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1 text-sm text-slate-600">
+              <p className="text-base font-semibold text-slate-900">{nameLabel}</p>
+              {profileDisplay && <p>{profileDisplay}</p>}
+              {me?.email && <p>Email: {me.email}</p>}
+            </div>
+            <div className="flex flex-col gap-2 text-sm font-semibold text-slate-600 lg:flex-row lg:items-center">
+              <nav className="flex flex-wrap gap-3 text-xs uppercase tracking-wide text-slate-500">
+                <span>Documentos</span>
+                <span>Templates</span>
+                <span>Clientes</span>
+                <span>Meu cadastro</span>
+              </nav>
+              <button type="button" className="btn btn-primary btn-sm" onClick={handleGoHome}>
+                Home
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 py-6 sm:px-8">
+          {renderContent()}
+        </main>
+
+        <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+        {mustChangePassword && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
+            <form
+              className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-2xl"
+              onSubmit={handlePasswordChangeSubmit}
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Defina uma nova senha</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Por segurança, você precisa alterar a senha temporária antes de continuar utilizando a plataforma.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600">Nova senha</label>
+                <input
+                  type="password"
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  value={passwordForm.newPassword}
+                  onChange={event => setPasswordForm(prev => ({ ...prev, newPassword: event.target.value }))}
+                  placeholder="Informe a nova senha"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600">Confirmar nova senha</label>
+                <input
+                  type="password"
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  value={passwordForm.confirmPassword}
+                  onChange={event => setPasswordForm(prev => ({ ...prev, confirmPassword: event.target.value }))}
+                  placeholder="Repita a nova senha"
+                  required
+                />
+              </div>
+              {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+              <div className="flex justify-end gap-2">
+                <button type="button" className="btn btn-ghost btn-sm" onClick={handleLogout} disabled={passwordChanging}>
+                  Sair
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={passwordChanging}>
+                  {passwordChanging ? 'Salvando...' : 'Salvar nova senha'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     );
   }

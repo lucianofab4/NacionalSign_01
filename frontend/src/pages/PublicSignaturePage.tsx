@@ -1,4 +1,17 @@
+<<<<<<< HEAD
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+=======
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MouseEvent,
+  type TouchEvent,
+} from "react";
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 import { useParams } from "react-router-dom";
 import { Document, Page } from "react-pdf";
 import axios from "axios";
@@ -38,6 +51,18 @@ const extractErrorMessage = (err: unknown): string => {
 };
 
 const normalizeDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
+const toBase64Payload = (value: string) => (value.includes(",") ? value.split(",")[1] : value);
+
+const mapAgentCertificates = (items: AgentCertificate[]): SigningCertificate[] =>
+  items.map((item, index) => ({
+    index: item.index ?? index,
+    subject: item.subject,
+    issuer: item.issuer,
+    serial_number: item.serialNumber,
+    thumbprint: item.thumbprint,
+    not_before: item.notBefore,
+    not_after: item.notAfter,
+  }));
 
 const mapAgentCertificates = (items: AgentCertificate[]): SigningCertificate[] =>
   items.map((item, index) => ({
@@ -93,6 +118,13 @@ export default function PublicSignaturePage() {
   const [signatureImageInputKey, setSignatureImageInputKey] = useState(0);
   const [signatureConsent, setSignatureConsent] = useState(false);
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
+<<<<<<< HEAD
+=======
+  const [drawModalOpen, setDrawModalOpen] = useState(false);
+  const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawnSignature, setHasDrawnSignature] = useState(false);
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const [currentSigningField, setCurrentSigningField] = useState<DocumentField | null>(null);
   const [fieldSignatureMap, setFieldSignatureMap] = useState<Record<string, { mode: string; preview?: string; value?: string }>>({});
 
@@ -353,12 +385,24 @@ export default function PublicSignaturePage() {
       if (sig.mode === "typed" && sig.value) {
         fieldPayload.typed_name = sig.value;
       } else if (sig.mode === "image" && sig.preview) {
+<<<<<<< HEAD
         const [, base64 = sig.preview] = sig.preview.split(",");
         fieldPayload.signature_image = base64;
         fieldPayload.signature_image_mime = "image/png";
         fieldPayload.signature_image_name = "signature.png";
       } else if (sig.mode === "draw") {
         fieldPayload.typed_name = "Assinatura desenhada";
+=======
+        const base64 = toBase64Payload(sig.preview);
+        fieldPayload.signature_image = base64;
+        fieldPayload.signature_image_mime = "image/png";
+        fieldPayload.signature_image_name = "signature.png";
+      } else if (sig.mode === "draw" && sig.preview) {
+        const base64 = toBase64Payload(sig.preview);
+        fieldPayload.signature_image = base64;
+        fieldPayload.signature_image_mime = "image/png";
+        fieldPayload.signature_image_name = "signature-draw.png";
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
       }
 
       payload.fields.push(fieldPayload);
@@ -430,6 +474,7 @@ export default function PublicSignaturePage() {
     }
 
     if (type === "draw") {
+<<<<<<< HEAD
       setFieldSignatureMap(prev => ({
         ...prev,
         [currentSigningField.id]: { mode: "draw", value: "Assinatura desenhada" },
@@ -437,6 +482,10 @@ export default function PublicSignaturePage() {
       toast.success("Representação de assinatura desenhada registrada.");
       setSignatureModalOpen(false);
       setCurrentSigningField(null);
+=======
+      setSignatureModalOpen(false);
+      setDrawModalOpen(true);
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
       return;
     }
 
@@ -461,6 +510,102 @@ export default function PublicSignaturePage() {
     }
   };
 
+<<<<<<< HEAD
+=======
+  useEffect(() => {
+    if (!drawModalOpen) return;
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#111827";
+    setIsDrawing(false);
+    setHasDrawnSignature(false);
+  }, [drawModalOpen]);
+
+  const getCanvasPoint = (event: MouseEvent<HTMLCanvasElement> | TouchEvent<HTMLCanvasElement>) => {
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const source = "touches" in event ? event.touches[0] : event;
+    return {
+      x: source.clientX - rect.left,
+      y: source.clientY - rect.top,
+    };
+  };
+
+  const handleDrawStart = (event: MouseEvent<HTMLCanvasElement> | TouchEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    const ctx = drawCanvasRef.current?.getContext("2d");
+    const point = getCanvasPoint(event);
+    if (!ctx || !point) return;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    setIsDrawing(true);
+  };
+
+  const handleDrawMove = (event: MouseEvent<HTMLCanvasElement> | TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    event.preventDefault();
+    const ctx = drawCanvasRef.current?.getContext("2d");
+    const point = getCanvasPoint(event);
+    if (!ctx || !point) return;
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    setHasDrawnSignature(true);
+  };
+
+  const handleDrawEnd = () => {
+    if (!isDrawing) return;
+    const ctx = drawCanvasRef.current?.getContext("2d");
+    if (ctx) {
+      ctx.closePath();
+    }
+    setIsDrawing(false);
+  };
+
+  const handleClearDrawCanvas = () => {
+    const canvas = drawCanvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#111827";
+    setHasDrawnSignature(false);
+    setIsDrawing(false);
+  };
+
+  const handleConfirmDrawSignature = () => {
+    if (!currentSigningField || !drawCanvasRef.current) return;
+    if (!hasDrawnSignature) {
+      toast.error("Desenhe sua assinatura antes de confirmar.");
+      return;
+    }
+    const dataUrl = drawCanvasRef.current.toDataURL("image/png");
+    setFieldSignatureMap(prev => ({
+      ...prev,
+      [currentSigningField.id]: { mode: "draw", preview: dataUrl },
+    }));
+    toast.success("Assinatura desenhada aplicada ao campo.");
+    setDrawModalOpen(false);
+    setCurrentSigningField(null);
+  };
+
+  const handleCancelDrawSignature = () => {
+    setDrawModalOpen(false);
+    setSignatureModalOpen(true);
+  };
+
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const loadCertificates = useCallback(async () => {
     setCertLoading(true);
     setCertError(null);
@@ -858,9 +1003,27 @@ export default function PublicSignaturePage() {
                               >
                                 <div className="flex h-full w-full items-center justify-center p-1 text-center">
                                   {fieldSignature ? (
+<<<<<<< HEAD
                                     <span className="text-[10px] font-bold text-emerald-700">
                                       Assinado ({fieldSignature.mode})
                                     </span>
+=======
+                                    fieldSignature.preview ? (
+                                      <img
+                                        src={fieldSignature.preview}
+                                        alt="Assinatura aplicada"
+                                        className="max-h-full max-w-full object-contain"
+                                      />
+                                    ) : fieldSignature.value ? (
+                                      <span className="text-[10px] font-bold text-emerald-700">
+                                        {fieldSignature.value}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-emerald-700">
+                                        Assinado ({fieldSignature.mode})
+                                      </span>
+                                    )
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
                                   ) : (
                                     <>
                                       <span className="text-[10px] font-bold text-rose-700 uppercase">
@@ -1071,6 +1234,54 @@ export default function PublicSignaturePage() {
           </div>
         </div>
       )}
+<<<<<<< HEAD
+=======
+      {drawModalOpen && currentSigningField && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-800">Desenhar assinatura</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Use o mouse ou o toque para desenhar sua assinatura exatamente como deseja que apareça no documento.
+            </p>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <canvas
+                ref={drawCanvasRef}
+                width={520}
+                height={220}
+                className="h-48 w-full rounded-md border border-slate-300 bg-white"
+                style={{ touchAction: "none" }}
+                onMouseDown={handleDrawStart}
+                onMouseMove={handleDrawMove}
+                onMouseUp={handleDrawEnd}
+                onMouseLeave={handleDrawEnd}
+                onTouchStart={handleDrawStart}
+                onTouchMove={handleDrawMove}
+                onTouchEnd={handleDrawEnd}
+              />
+              <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                <span>{hasDrawnSignature ? "Assinatura pronta para ser aplicada." : "Desenhe dentro da área acima."}</span>
+                <button type="button" className="btn btn-ghost btn-xs" onClick={handleClearDrawCanvas}>
+                  Limpar
+                </button>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleCancelDrawSignature}>
+                Voltar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handleConfirmDrawSignature}
+                disabled={!hasDrawnSignature}
+              >
+                Aplicar assinatura
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
     </div>
   );
 }

@@ -59,18 +59,6 @@ interface DocumentManagerPageProps {
   standalone?: boolean;
 }
 
-interface FieldFormState {
-  role: string;
-  field_type: string;
-  page: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  required: boolean;
-}
-
 interface PartyFormState {
   full_name: string;
   email: string;
@@ -126,6 +114,7 @@ const formatPhoneDisplay = (value: string) => {
 };
 
 type DocumentListFilter = "all" | "my_pending" | "area_pending";
+<<<<<<< HEAD
 type FlowStrategy = "manual" | "template";
 
 const FLOW_STRATEGY_ENTRIES: Array<{
@@ -153,22 +142,43 @@ const FLOW_STRATEGY_ENTRIES: Array<{
       "O sistema carrega automaticamente representantes, pap\u00e9is, forma de assinatura, ordem do fluxo e configura\u00e7\u00f5es j\u00e1 definidas.",
       "Ainda \u00e9 poss\u00edvel editar, incluir ou remover participantes antes de enviar para assinatura.",
     ],
+=======
+type WorkflowTab = "document" | "flow" | "positions" | "dispatch" | "evidence";
+
+const WORKFLOW_TABS: Array<{
+  id: WorkflowTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "document",
+    label: "1. Documento",
+    description: "Envie arquivos, cadastre títulos e escolha qual item será configurado agora.",
+  },
+  {
+    id: "flow",
+    label: "2. Fluxo",
+    description: "Prepare o fluxo manual, cadastre representantes ou aplique um modelo salvo.",
+  },
+  {
+    id: "positions",
+    label: "3. Assinaturas",
+    description: "Defina onde cada participante deve assinar diretamente sobre o PDF.",
+  },
+  {
+    id: "dispatch",
+    label: "4. Revisão e envio",
+    description: "Revise o checklist e dispare as notificações para assinatura.",
+  },
+  {
+    id: "evidence",
+    label: "5. Protocolo",
+    description: "Consulte o histórico, protocolos e evidências geradas pelo sistema.",
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   },
 ];
 
 const normalizeRoleValue = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
-
-const defaultFieldForm = (): FieldFormState => ({
-  role: "signer",
-  field_type: "signature",
-  page: 1,
-  x: 10,
-  y: 20,
-  width: 25,
-  height: 10,
-  label: "",
-  required: true,
-});
 
 const defaultPartyForm = (order = 1): PartyFormState => ({
   full_name: "",
@@ -211,7 +221,6 @@ export default function DocumentManagerPage({
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
   const [activeVersion, setActiveVersion] = useState<DocumentVersion | null>(null);
   const [fields, setFields] = useState<DocumentField[]>([]);
-  const [fieldForm, setFieldForm] = useState<FieldFormState>(() => defaultFieldForm());
   const [fieldSaving, setFieldSaving] = useState(false);
 
   const fieldTypeOptions = useMemo(
@@ -261,6 +270,7 @@ export default function DocumentManagerPage({
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [signHistory, setSignHistory] = useState<SignAttempt[]>([]);
+  const [expandedAuditEvents, setExpandedAuditEvents] = useState<Set<string>>(new Set());
   const [latestAttempt, setLatestAttempt] = useState<SignAgentAttempt | null>(null);
   const [attemptLoading, setAttemptLoading] = useState(false);
   const [retryingAgent, setRetryingAgent] = useState(false);
@@ -278,6 +288,7 @@ export default function DocumentManagerPage({
   const [hashCopied, setHashCopied] = useState(false);
   const [documentFilter, setDocumentFilter] = useState<DocumentListFilter>("all");
   const [shareCopied, setShareCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<WorkflowTab>("document");
   const [resendingNotifications, setResendingNotifications] = useState(false);
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
   const [certificates, setCertificates] = useState<SigningCertificate[]>([]);
@@ -683,6 +694,7 @@ export default function DocumentManagerPage({
 
   const canDispatch = !dispatchDisabledReason;
   const documentReady = Boolean(selectedDocument && activeVersion);
+<<<<<<< HEAD
   const signaturePositionsReady = fields.length > 0;
   const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
   const dispatchReady = Boolean(selectedDocument && ["in_progress", "completed"].includes(selectedDocument.status));
@@ -726,6 +738,11 @@ export default function DocumentManagerPage({
     },
     [documentReady, dispatchReady, flowConfigured, signaturePositionsReady, usingTemplate],
   );
+=======
+  const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
+  const signaturePositionsReady = fields.length > 0;
+  const dispatchReady = readinessComplete;
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 
   useEffect(() => {
     if (readinessComplete) {
@@ -768,6 +785,59 @@ export default function DocumentManagerPage({
       ),
     [auditEvents],
   );
+
+  const tabStatus = useMemo(
+    () => ({
+      document: { enabled: true, complete: documentReady },
+      flow: { enabled: documentReady, complete: flowConfigured },
+      positions: { enabled: documentReady && flowConfigured, complete: signaturePositionsReady },
+      dispatch: {
+        enabled: documentReady && flowConfigured && signaturePositionsReady,
+        complete: dispatchReady,
+      },
+      evidence: {
+        enabled: documentReady && flowConfigured && signaturePositionsReady && dispatchReady,
+        complete: sortedAuditEvents.length > 0 || signHistory.length > 0,
+      },
+    }),
+    [documentReady, flowConfigured, signaturePositionsReady, dispatchReady, sortedAuditEvents.length, signHistory.length],
+  );
+
+  useEffect(() => {
+    const currentStatus = tabStatus[activeTab];
+    if (currentStatus && !currentStatus.enabled) {
+      const fallback = WORKFLOW_TABS.find(tab => tabStatus[tab.id].enabled)?.id ?? "document";
+      if (fallback !== activeTab) {
+        setActiveTab(fallback);
+      }
+    }
+  }, [activeTab, tabStatus]);
+
+  useEffect(() => {
+    setExpandedAuditEvents(prev => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(sortedAuditEvents.map(event => event.id));
+      const next = new Set<string>();
+      prev.forEach(id => {
+        if (validIds.has(id)) {
+          next.add(id);
+        }
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [sortedAuditEvents]);
+
+  const toggleAuditEvent = useCallback((eventId: string) => {
+    setExpandedAuditEvents(prev => {
+      const next = new Set(prev);
+      if (next.has(eventId)) {
+        next.delete(eventId);
+      } else {
+        next.add(eventId);
+      }
+      return next;
+    });
+  }, []);
 
   const partySuggestions = useMemo<PartySuggestion[]>(
     () =>
@@ -1123,6 +1193,7 @@ export default function DocumentManagerPage({
     [applyTemplateSteps, templateOptions],
   );
 
+<<<<<<< HEAD
   const handleStrategySelect = useCallback(
     (strategy: FlowStrategy) => {
       if (strategy === "manual") {
@@ -1139,6 +1210,8 @@ export default function DocumentManagerPage({
     [handleTemplateSelection, selectedTemplateId, templateOptions],
   );
 
+=======
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const refreshVersion = useCallback(
     async (documentId: string, versionId: string | null) => {
       if (!versionId) {
@@ -1395,10 +1468,13 @@ export default function DocumentManagerPage({
     void performSignWithAgent(selectedCertificateIndex);
   };
 
+<<<<<<< HEAD
   const handleFieldInput = (key: keyof FieldFormState, value: string | number | boolean) => {
     setFieldForm(prev => ({ ...prev, [key]: value }));
   };
 
+=======
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const handleCreateField = useCallback(
     async (payload: DocumentFieldPayload) => {
       if (!selectedDocument || !activeVersion) {
@@ -1421,6 +1497,7 @@ export default function DocumentManagerPage({
     },
     [selectedDocument, activeVersion, refreshVersion],
   );
+<<<<<<< HEAD
 
   const handleAddField = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1443,6 +1520,8 @@ export default function DocumentManagerPage({
       setFieldForm(defaultFieldForm());
     }
   };
+=======
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 
   const handleDeleteField = async (fieldId: string) => {
     if (!selectedDocument || !activeVersion) return;
@@ -1888,7 +1967,7 @@ export default function DocumentManagerPage({
     return items.length > 0 ? items.join(" • ") : "-";
   };
   const wrapperClassName = standaloneView ? "mx-auto flex max-w-6xl flex-col gap-6" : "space-y-6";
-  const headerContent = standaloneView ? (
+  const headerContent = standaloneView || focusMode ? (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
@@ -1915,7 +1994,7 @@ export default function DocumentManagerPage({
           )}
         </div>
       </div>
-      {standaloneError && (
+      {standaloneError && standaloneView && (
         <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
           {standaloneError}
         </div>
@@ -1934,13 +2013,15 @@ export default function DocumentManagerPage({
     </div>
   );
 
+  const focusMode = Boolean(selectedDocument) && !standaloneView;
   const limitBanner = documentLimitReached ? (
     <div className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700">
       Limite de documentos assinados do plano foi atingido ({documentsUsed}/{documentsQuota} utilizados). Atualize o plano ou contrate um pacote adicional para enviar novos documentos.
     </div>
   ) : null;
-  const showDocumentList = !standaloneView && documents.length > 0;
+  const showDocumentList = !standaloneView && !focusMode && documents.length > 0;
 
+<<<<<<< HEAD
   return (
     <div className={wrapperClassName}>
       {headerContent}
@@ -2034,6 +2115,12 @@ export default function DocumentManagerPage({
       <div className={`grid grid-cols-1 gap-6 ${showDocumentList ? "lg:grid-cols-2" : ""}`}>
         {showDocumentList && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+=======
+  const renderDocumentTab = () => (
+    <div className={`grid grid-cols-1 gap-6 ${showDocumentList ? "lg:grid-cols-2" : ""}`}>
+      {showDocumentList && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
           <div className="px-6 py-4 border-b border-slate-200 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold text-slate-700">Lista de documentos</h2>
             <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -2045,7 +2132,7 @@ export default function DocumentManagerPage({
               >
                 <option value="all">Todos</option>
                 <option value="my_pending">Pendentes (meus)</option>
-                <option value="area_pending">Pendentes na rea</option>
+                <option value="area_pending">Pendentes na área</option>
               </select>
             </div>
           </div>
@@ -2054,7 +2141,7 @@ export default function DocumentManagerPage({
           ) : visibleDocuments.length === 0 ? (
             <div className="px-6 py-4 text-sm text-slate-500">
               {documentFilter === "all"
-                ? "Nenhum documento cadastrado nesta area."
+                ? "Nenhum documento cadastrado nesta área."
                 : "Nenhum documento encontrado para o filtro selecionado."}
             </div>
           ) : (
@@ -2072,12 +2159,12 @@ export default function DocumentManagerPage({
                   return (
                     <tr
                       key={doc.id}
-                      className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${isSelected ? 'bg-slate-100/70' : ''}`}
+                      className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${isSelected ? "bg-slate-100/70" : ""}`}
                       onClick={() => handleSelectDocument(doc)}
                     >
                       <td className="px-6 py-3 font-medium text-slate-700">{doc.name}</td>
-                      <td className="px-6 py-3 capitalize">{doc.status.replace('_', ' ')}</td>
-                      <td className="px-6 py-3">{new Date(doc.updated_at ?? doc.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="px-6 py-3 capitalize">{doc.status.replace("_", " ")}</td>
+                      <td className="px-6 py-3">{new Date(doc.updated_at ?? doc.created_at).toLocaleString("pt-BR")}</td>
                     </tr>
                   );
                 })}
@@ -2085,6 +2172,7 @@ export default function DocumentManagerPage({
             </table>
           )}
         </div>
+<<<<<<< HEAD
         )}
 
         <div className="space-y-6">
@@ -2532,23 +2620,27 @@ export default function DocumentManagerPage({
               <div className="px-6 py-8 text-sm text-slate-500">
                 Selecione um documento para configurar as partes e representantes.
               </div>
+=======
+      )}
+      {!showDocumentList && !standaloneView && !focusMode && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          Sem documentos para exibir neste filtro. Clique em "Novo documento" para iniciar um cadastro.
+        </div>
+      )}
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-700">Cadastro do documento</h2>
+            {selectedDocument && (
+              <span className="text-xs font-medium text-slate-500">
+                Status: <span className="capitalize">{selectedDocument.status.replace("_", " ")}</span>
+              </span>
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
             )}
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-700">Fluxo manual de assinatura</h2>
-              {selectedDocument && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs"
-                  onClick={handleManualFlowReset}
-                  disabled={!manualFlowDirty || parties.length === 0}
-                >
-                  Sincronizar com as partes
-                </button>
-              )}
-            </div>
+          <div className="p-6 space-y-4 text-sm text-slate-600">
             {selectedDocument ? (
+<<<<<<< HEAD
               <div className="p-6 space-y-4">
                 {parties.length === 0 && (
                   <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -2712,141 +2804,672 @@ export default function DocumentManagerPage({
                     <button type="submit" className="btn btn-secondary btn-sm" disabled={fieldSaving}>
                       {fieldSaving ? 'Adicionando...' : 'Adicionar campo'}
                     </button>
-                  </div>
-                </form>
-
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="min-w-full text-xs">
-                    <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Papel</th>
-                        <th className="px-3 py-2 text-left">Tipo</th>
-                        <th className="px-3 py-2 text-left">Pagina</th>
-                        <th className="px-3 py-2 text-left">Posicao</th>
-                        <th className="px-3 py-2 text-left">Dimensoes</th>
-                        <th className="px-3 py-2 text-left">Acoes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fields.length === 0 ? (
-                        <tr>
-                          <td className="px-3 py-3 text-slate-500" colSpan={6}>
-                            Nenhum campo configurado.
-                          </td>
-                        </tr>
-                      ) : (
-                        fields.map(field => (
-                          <tr key={field.id} className="border-t border-slate-100">
-                            <td className="px-3 py-2 font-medium text-slate-700">{field.role}</td>
-                            <td className="px-3 py-2 capitalize">{field.field_type}</td>
-                            <td className="px-3 py-2 text-center">{field.page}</td>
-                            <td className="px-3 py-2">
-                              X {percent(field.x)} / Y {percent(field.y)}
-                            </td>
-                            <td className="px-3 py-2">
-                              {percent(field.width)} x {percent(field.height)}
-                            </td>
-                            <td className="px-3 py-2">
-                              <button
-                                className="btn btn-ghost btn-xs text-rose-600"
-                                onClick={() => handleDeleteField(field.id)}
-                              >
-                                Remover
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+=======
+              <>
+                <div>
+                  <p className="text-xs uppercase text-slate-500">Documento atual</p>
+                  <p className="text-base font-semibold text-slate-800">{selectedDocument.name}</p>
                 </div>
-              </div>
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-xs uppercase text-slate-500">Versão carregada</dt>
+                    <dd className="text-sm font-semibold text-slate-700">{activeVersion ? activeVersion.id : "Carregando..."}</dd>
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase text-slate-500">Última atualização</dt>
+                    <dd className="text-sm font-semibold text-slate-700">
+                      {new Date(selectedDocument.updated_at ?? selectedDocument.created_at).toLocaleString("pt-BR")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase text-slate-500">Participantes</dt>
+                    <dd className="text-sm font-semibold text-slate-700">{parties.length}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase text-slate-500">Campos posicionados</dt>
+                    <dd className="text-sm font-semibold text-slate-700">{fields.length}</dd>
+                  </div>
+                </dl>
+                <p className="text-xs text-slate-500">
+                  Avance para a próxima guia para configurar o fluxo de representantes e as posições de assinatura.
+                </p>
+              </>
             ) : (
-              <div className="px-6 py-8 text-sm text-slate-500">
-                Selecione um documento para configurar os campos de assinatura.
-              </div>
+              <p className="text-sm text-slate-500">Selecione um documento da lista ou crie um novo para iniciar o fluxo.</p>
             )}
           </div>
         </div>
       </div>
-      {isDocumentCompleted && activeVersion && (
-        <div className="rounded-xl border border-emerald-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-lg font-semibold text-emerald-700">Processo concludo digitalmente</p>
-              <p className="text-sm text-slate-600">
-                {isInitiator
-                  ? "Voc iniciou este fluxo e j pode compartilhar o documento consolidado com o time."
-                  : "Este documento foi finalizado e est disponvel para consulta segura."}
-              </p>
-            </div>
-            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              100% assinado
-            </span>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={handleOpenFinalPdf}
-              disabled={!finalDownloadUrl}
-            >
-              {hasDetachedSignatures ? 'Baixar pacote (.zip)' : 'Baixar PDF final'}
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleOpenAuditPanel}>
-              Relatrio de auditoria
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleOpenVerification}
-              disabled={!verificationUrl}
-            >
-              Verificao pblica
-            </button>
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs uppercase text-slate-500">Carimbo de tempo</p>
-              <p className="text-sm font-semibold text-slate-800">{formattedConsolidatedAt ?? "Em processamento"}</p>
-              {activeVersion?.icp_authority && (
-                <p className="text-xs text-slate-500">Autoridade: {activeVersion.icp_authority}</p>
-              )}
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs uppercase text-slate-500">Hash SHA-256</p>
-              <p className="text-sm font-mono text-slate-800 break-all">{documentHash ?? "-"}</p>
-              {documentHash && (
+    </div>
+  );
+
+  const renderFlowTab = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-700">Partes e representantes</h2>
+          {partyLoading && <span className="text-xs text-slate-500">Carregando...</span>}
+        </div>
+        {selectedDocument ? (
+          <div className="p-6 space-y-6">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+              <label className="text-xs font-semibold text-slate-600" htmlFor="template-select-top">
+                Modelos salvos
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  id="template-select-top"
+                  className="flex-1 min-w-[200px] border border-slate-300 rounded-md px-3 py-2 text-sm"
+                  value={selectedTemplateId}
+                  onChange={event => handleTemplateSelection(event.target.value)}
+                  disabled={templateLoading || templateOptions.length === 0}
+                >
+                  <option value="">Selecione um modelo</option>
+                  {templateOptions.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
-                  className="mt-2 text-xs font-medium text-indigo-600 hover:text-indigo-500"
-                  onClick={handleCopyHash}
+                  className="btn btn-secondary"
+                  onClick={handleApplyTemplate}
+                  disabled={!selectedTemplateId || templateLoading}
                 >
-                  {hashCopied ? "Hash copiado!" : "Copiar hash"}
+                  Aplicar modelo
                 </button>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Os modelos ficam visíveis apenas para colaboradores da mesma área. Ajuste qualquer dado antes de prosseguir.
+              </p>
+              {templateLoading ? (
+                <p className="text-xs text-slate-500">Carregando modelos disponíveis...</p>
+              ) : templateError ? (
+                <p className="text-xs text-rose-600">{templateError}</p>
+              ) : templateOptions.length === 0 ? (
+                <p className="text-xs text-slate-500">Nenhum modelo configurado para esta área.</p>
+              ) : usingTemplate ? (
+                <p className="text-xs text-slate-500">
+                  O modelo define os papéis e a ordem do fluxo. Cadastre os representantes abaixo com os dados corretos.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Escolha um modelo para preencher o fluxo automaticamente ou siga com o cadastro manual.
+                </p>
               )}
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              <p>
-                Referncia pblica:{" "}
-                <span className="font-mono text-xs text-slate-700">{selectedDocument?.id.slice(0, 8)}...</span>
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
-                Use o link de verificao para compartilhar a verso auditvel com clientes e parceiros.
-              </p>
-            </div>
+            {usingTemplate && manualFlowSteps.length > 0 && (
+              <div className="space-y-4">
+                {manualFlowSteps.map((step, index) => {
+                  const roleLabel = step.role || `papel_${index + 1}`;
+                  const normalizedRole = normalizeRoleValue(step.role);
+                  const roleParties = parties.filter(
+                    party => normalizeRoleValue(party.role) === normalizedRole,
+                  );
+                  return (
+                    <div key={step.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Papel: {roleLabel}</p>
+                          <p className="text-xs text-slate-500">
+                            Ação: {step.action} • Execução: {step.execution === "parallel" ? "Paralela" : "Sequencial"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs"
+                          onClick={() => handleEditTemplateRole(step.id)}
+                        >
+                          Ajustar pares
+                        </button>
+                      </div>
+                      <div className="border-t border-dashed border-slate-200 mt-3 pt-3 space-y-1 text-xs text-slate-500">
+                        <p>
+                          Participantes pareados:{" "}
+                          {roleParties.length > 0
+                            ? roleParties.map(party => party.full_name || party.email || party.role || "participante").join(", ")
+                            : "Nenhum participante pareado"}
+                        </p>
+                        <p>
+                          Tipo de execução: <span className="font-medium">{step.execution === "parallel" ? "Paralela" : "Sequencial"}</span>
+                        </p>
+                      </div>
+                      {templateRoleEditing === step.id && (
+                        <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2">
+                          <p className="text-xs font-semibold text-slate-700">Vincular participantes</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {parties.length === 0 ? (
+                              <span className="text-[11px] text-slate-500">Cadastre participantes para fazer o pareamento.</span>
+                            ) : (
+                              parties.map(party => (
+                                <label key={party.id} className="text-xs text-slate-600 flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={normalizeRoleValue(party.role) === normalizedRole}
+                                    onChange={event => handleTemplateRoleAssignment(step.id, party.id, event.target.checked)}
+                                  />
+                                  {party.full_name || party.email || party.role || "Participante"}
+                                </label>
+                              ))
+                            )}
+                          </div>
+                          <div className="mt-3 flex justify-end gap-2">
+                            <button type="button" className="btn btn-ghost btn-xs" onClick={() => setTemplateRoleEditing(null)}>
+                              Fechar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handlePartySubmit} id="party-form-anchor">
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Nome completo
+                <div className="relative">
+                  <input
+                    className="mt-1 border rounded px-2 py-1 text-sm w-full"
+                    value={partyForm.full_name}
+                    onChange={event => handleContactNameChange(event.target.value)}
+                    placeholder="Nome e sobrenome"
+                    required
+                  />
+                  {partyForm.full_name.trim().length >= 3 && (contactSearching || contactSuggestions.length > 0) && (
+                    <div className="absolute top-full left-0 right-0 z-20 mt-1 rounded-md border border-slate-200 bg-white shadow-lg">
+                      {contactSearching && (
+                        <div className="px-3 py-2 text-xs text-slate-500">Buscando contatos...</div>
+                      )}
+                      {!contactSearching &&
+                        contactSuggestions.map(contact => (
+                          <button
+                            type="button"
+                            key={contact.id}
+                            className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-xs hover:bg-slate-50"
+                            onMouseDown={event => event.preventDefault()}
+                            onClick={() => applyContactSuggestion(contact)}
+                          >
+                            <span className="text-sm font-semibold text-slate-800">{contact.full_name}</span>
+                            <span className="text-[11px] text-slate-500">
+                              {[contact.email, contact.phone_number, contact.company_name].filter(Boolean).join(" • ")}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                E-mail
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  type="email"
+                  value={partyForm.email}
+                  onChange={event => handlePartyInput("email", event.target.value)}
+                  placeholder="exemplo@empresa.com"
+                  required={partyForm.require_email || partyForm.notification_channel === "email"}
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Telefone
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.phone_number}
+                  onChange={event => handlePartyInput("phone_number", event.target.value)}
+                  placeholder="(11) 99999-0000"
+                  required={partyForm.require_phone || partyForm.notification_channel === "sms"}
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Documento (CPF)
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.cpf}
+                  onChange={event => handlePartyInput("cpf", event.target.value)}
+                  placeholder="000.000.000-00"
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Papel / função
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.role}
+                  onChange={event => handlePartyInput("role", event.target.value)}
+                  placeholder="Ex.: assinante, testemunha"
+                  required
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Ordem no fluxo
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  type="number"
+                  min={1}
+                  value={partyForm.order_index}
+                  onChange={event => handlePartyInput("order_index", Number(event.target.value))}
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Canal de notificação
+                <select
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.notification_channel}
+                  onChange={event =>
+                    handlePartyInput("notification_channel", event.target.value as PartyFormState["notification_channel"])
+                  }
+                >
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                </select>
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Empresa
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.company_name}
+                  onChange={event => handlePartyInput("company_name", event.target.value)}
+                  placeholder="Opcional"
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                CNPJ / Doc. Empresa
+                <input
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.company_tax_id}
+                  onChange={event => handlePartyInput("company_tax_id", event.target.value)}
+                  placeholder="Opcional"
+                />
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Tipo de assinatura
+                <select
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.signature_method}
+                  onChange={event => handlePartyInput("signature_method", event.target.value as PartyFormState["signature_method"])}
+                >
+                  <option value="electronic">Eletrônica</option>
+                  <option value="digital">Digital ICP-Brasil</option>
+                </select>
+              </label>
+              <label className="flex flex-col text-xs font-semibold text-slate-500">
+                Token 2FA
+                <select
+                  className="mt-1 border rounded px-2 py-1 text-sm"
+                  value={partyForm.two_factor_type}
+                  onChange={event => handlePartyInput("two_factor_type", event.target.value)}
+                >
+                  <option value="">Sem verificação adicional</option>
+                  <option value="sms">Token via SMS</option>
+                  <option value="email">Token via email</option>
+                </select>
+              </label>
+              <div className="flex flex-col text-xs font-semibold text-slate-500">
+                Campos obrigatórios
+                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.require_cpf}
+                      onChange={event => handlePartyInput("require_cpf", event.target.checked)}
+                    />
+                    CPF
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.require_email}
+                      onChange={event => handlePartyInput("require_email", event.target.checked)}
+                    />
+                    Email
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.require_phone}
+                      onChange={event => handlePartyInput("require_phone", event.target.checked)}
+                    />
+                    Telefone
+                  </label>
+                </div>
+              </div>
+              <div className="flex flex-col text-xs font-semibold text-slate-500">
+                Contatos obrigatórios
+                <div className="mt-2 flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.require_email}
+                      onChange={event => handlePartyInput("require_email", event.target.checked)}
+                    />
+                    Email
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.require_phone}
+                      onChange={event => handlePartyInput("require_phone", event.target.checked)}
+                    />
+                    Telefone
+                  </label>
+                </div>
+              </div>
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex flex-col text-xs font-semibold text-slate-500">
+                  Permitir assinatura
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-slate-600">
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={partyForm.allow_typed_name}
+                        onChange={event => handlePartyInput("allow_typed_name", event.target.checked)}
+                      />
+                      Nome digitado
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={partyForm.allow_signature_image}
+                        onChange={event => handlePartyInput("allow_signature_image", event.target.checked)}
+                      />
+                      Upload de imagem
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={partyForm.allow_signature_draw}
+                        onChange={event => handlePartyInput("allow_signature_draw", event.target.checked)}
+                      />
+                      Assinatura desenhada
+                    </label>
+                  </div>
+                </div>
+                <div className="flex flex-col text-xs font-semibold text-slate-500">
+                  Contatos obrigatórios
+                  <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={partyForm.require_email}
+                        onChange={event => handlePartyInput("require_email", event.target.checked)}
+                      />
+                      Email
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={partyForm.require_phone}
+                        onChange={event => handlePartyInput("require_phone", event.target.checked)}
+                      />
+                      Telefone
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col text-xs font-semibold text-slate-500">
+                Campos opcionais
+                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.allow_typed_name}
+                      onChange={event => handlePartyInput("allow_typed_name", event.target.checked)}
+                    />
+                    Nome digitado
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.allow_signature_image}
+                      onChange={event => handlePartyInput("allow_signature_image", event.target.checked)}
+                    />
+                    Upload de imagem
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={partyForm.allow_signature_draw}
+                      onChange={event => handlePartyInput("allow_signature_draw", event.target.checked)}
+                    />
+                    Assinatura desenhada
+                  </label>
+                </div>
+              </div>
+              {partyError && <div className="md:col-span-2 text-xs text-rose-600">{partyError}</div>}
+              <div className="md:col-span-2 flex justify-between items-center">
+                {editingPartyId && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={handleCancelEditParty}>
+                    Cancelar edição
+                  </button>
+                )}
+                <button type="submit" className="btn btn-primary btn-sm" disabled={partySaving}>
+                  {partySaving ? "Salvando..." : editingPartyId ? "Atualizar parte" : "Adicionar parte"}
+                </button>
+              </div>
+            </form>
+
+            {!usingTemplate && (
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                {partyLoading ? (
+                  <div className="px-4 py-4 text-sm text-slate-500">Carregando partes...</div>
+                ) : parties.length === 0 ? (
+                  <div className="px-4 py-4 text-sm text-slate-500">Nenhuma parte cadastrada para este documento.</div>
+                ) : (
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Representante</th>
+                        <th className="px-3 py-2 text-left">Empresa</th>
+                        <th className="px-3 py-2 text-left">Canal</th>
+                        <th className="px-3 py-2 text-left">Contato</th>
+                        <th className="px-3 py-2 text-left">Obrigatórios</th>
+                        <th className="px-3 py-2 text-left">Assinatura</th>
+                        <th className="px-3 py-2 text-left">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parties.map(party => {
+                        const channel = (party.notification_channel ?? "email").toLowerCase();
+                        const channelLabel = channel === "sms" ? "SMS" : "Email";
+                        const emailValue = party.email ?? "";
+                        const emailNormalizedValue = normalizeEmail(emailValue);
+                        const emailNeeded = Boolean(party.require_email) || channel === "email";
+                        const emailValid = emailValue ? isEmailValid(emailNormalizedValue) : false;
+                        const phoneValue = party.phone_number ?? "";
+                        const phoneDigits = normalizePhone(phoneValue);
+                        const phoneNeeded = Boolean(party.require_phone) || channel === "sms";
+                        const phoneValid = phoneDigits ? isPhoneValid(phoneDigits) : false;
+                        const phoneDisplay = phoneDigits ? formatPhoneDisplay(phoneDigits) : "-";
+                        return (
+                          <tr key={party.id} className="border-t border-slate-100">
+                            <td className="px-3 py-2 font-semibold text-slate-700">
+                              <div className="flex flex-col">
+                                <span>{party.full_name || "Sem nome"}</span>
+                                <span className="text-xs text-slate-500">{party.role || "Papel não definido"}</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{party.company_name || "-"}</td>
+                            <td className="px-3 py-2 text-slate-600">{channelLabel}</td>
+                            <td className="px-3 py-2 text-slate-600">
+                              <div className="text-xs">
+                                <p className={emailNeeded && !emailValid ? "text-rose-600" : ""}>{emailValue || "-"}</p>
+                                <p className={`${phoneNeeded && !phoneValid ? "text-rose-600" : ""}`}>{phoneDisplay}</p>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{requiredSummary(party)}</td>
+                            <td className="px-3 py-2 text-slate-600">{signatureSummary(party)}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-wrap gap-2">
+                                <button className="btn btn-ghost btn-xs" onClick={() => handleEditParty(party)}>
+                                  Editar
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-xs text-rose-600"
+                                  onClick={() => handleDeleteParty(party.id)}
+                                >
+                                  Remover
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() => handleCopySignerLink(party)}
+                                  disabled={copyingPartyLinkId === party.id}
+                                >
+                                  {copyingPartyLinkId === party.id ? "Copiando..." : "Copiar link"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="px-6 py-8 text-sm text-slate-500">Selecione um documento para configurar as partes e representantes.</div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-700">Fluxo manual de assinatura</h2>
+          {selectedDocument && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={handleManualFlowReset}
+              disabled={!manualFlowDirty || parties.length === 0}
+            >
+              Sincronizar com as partes
+            </button>
+          )}
+        </div>
+        {selectedDocument ? (
+          <div className="p-6 space-y-4">
+            {parties.length === 0 && (
+              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Cadastre ao menos um participante para que o modelo consiga parear automaticamente com os papéis. Você ainda pode selecionar ou ajustar um modelo agora e concluir o pareamento depois.
+              </div>
+            )}
+            <p className="text-sm text-slate-600">
+              Ajuste a sequência dos papéis quando optar por enviar este documento sem um modelo pré-definido. As etapas abaixo serão consideradas no envio.
+            </p>
+            {!usingTemplate && (
+              <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-white/70 px-4 py-3 text-xs text-slate-600">
+                <span>Depois de definir o fluxo, salve-o como modelo para reutilizar em outros documentos.</span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleOpenTemplateModal}
+                  disabled={manualFlowSteps.length === 0}
+                >
+                  Salvar fluxo como modelo
+                </button>
+              </div>
+            )}
+            <StepBuilder value={manualFlowSteps} onChange={handleManualFlowChange} partySuggestions={partySuggestions} />
+            {manualFlowRoleWarnings.length > 0 && (
+              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Algumas etapas ainda não possuem partes compatíveis: {manualFlowRoleWarnings.join(" • ")}
+              </div>
+            )}
+            <p className="text-xs text-slate-500">
+              Dica: mantenha o nome do papel igual ao configurado na seção de partes para fazer o pareamento automaticamente.
+            </p>
+          </div>
+        ) : (
+          <div className="px-6 py-8 text-sm text-slate-500">Selecione um documento para configurar o fluxo manual.</div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderPositionsTab = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
+      <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-700">Campos de assinatura</h2>
+        {activeVersion?.icp_signed && (
+          <button
+            type="button"
+            className="text-primary-600 text-sm font-medium hover:underline disabled:opacity-50"
+            onClick={handleOpenFinalPdf}
+            disabled={!finalDownloadUrl}
+          >
+            {hasDetachedSignatures ? "Baixar pacote (.zip)" : "Baixar PDF assinado"}
+          </button>
+        )}
+      </div>
+      {selectedDocument && activeVersion ? (
+        <div className="p-6 space-y-6">
+          <PdfFieldDesigner
+            fileUrl={pdfPreviewUrl}
+            roles={availableRoles}
+            fieldTypes={fieldTypeOptions}
+            fields={fields}
+            onCreateField={handleCreateField}
+            isSaving={fieldSaving}
+          />
+
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <table className="min-w-full text-xs">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
+                <tr>
+                  <th className="px-3 py-2 text-left">Papel</th>
+                  <th className="px-3 py-2 text-left">Tipo</th>
+                  <th className="px-3 py-2 text-left">Página</th>
+                  <th className="px-3 py-2 text-left">Posição</th>
+                  <th className="px-3 py-2 text-left">Dimensões</th>
+                  <th className="px-3 py-2 text-left">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fields.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                      Nenhum campo configurado.
+                    </td>
+                  </tr>
+                ) : (
+                  fields.map(field => (
+                    <tr key={field.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-medium text-slate-700">{field.role}</td>
+                      <td className="px-3 py-2 capitalize">{field.field_type}</td>
+                      <td className="px-3 py-2 text-center">{field.page}</td>
+                      <td className="px-3 py-2">
+                        X {percent(field.x)} / Y {percent(field.y)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {percent(field.width)} x {percent(field.height)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <button className="btn btn-ghost btn-xs text-rose-600" onClick={() => handleDeleteField(field.id)}>
+                          Remover
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+      ) : (
+        <div className="px-6 py-8 text-sm text-slate-500">Selecione um documento para configurar os campos de assinatura.</div>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200" ref={auditPanelRef}>
+    </div>
+  );
+
+  const renderDispatchTab = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-700">Checklist de preparação</h2>
           {selectedDocument && (
-            <span
-              className={`text-xs font-medium ${
-                readinessComplete ? "text-emerald-600" : "text-amber-600"
-              }`}
-            >
+            <span className={`text-xs font-medium ${readinessComplete ? "text-emerald-600" : "text-amber-600"}`}>
               {readinessComplete ? "Pronto para envio" : "Ações pendentes"}
             </span>
           )}
@@ -2859,12 +3482,17 @@ export default function DocumentManagerPage({
               <ul className="space-y-3">
                 {readinessItems.map(item => (
                   <li key={item.id} className="flex items-start gap-3">
+<<<<<<< HEAD
                     <span
                       className={`mt-0.5 text-base font-semibold ${
                         item.ok ? "text-emerald-600" : "text-amber-500"
                       }`}
                     >
                       {item.ok ? "✔" : "✖"}
+=======
+                    <span className={`mt-0.5 text-base font-semibold ${item.ok ? "text-emerald-600" : "text-amber-500"}`}>
+                      {item.ok ? "✓" : "!"}
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
                     </span>
                     <div>
                       <div className="text-sm font-medium text-slate-700">{item.label}</div>
@@ -2876,120 +3504,22 @@ export default function DocumentManagerPage({
             )}
           </div>
         ) : (
-          <div className="px-6 py-6 text-sm text-slate-500">
-            Selecione um documento para visualizar o checklist.
-          </div>
-        )}
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-700">Protocolo e evidências</h2>
-          {selectedDocument && (
-            <div className="flex items-center gap-2">
-              {auditLoading && <span className="text-xs text-slate-500">Carregando...</span>}
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() => selectedDocument && loadAuditEvents(selectedDocument.id)}
-                disabled={auditLoading}
-              >
-                Atualizar
-              </button>
-            </div>
-          )}
-        </div>
-        {selectedDocument ? (
-          <div className="p-6 space-y-4">
-            {auditError && <div className="text-xs text-rose-600">{auditError}</div>}
-            {!auditError && !auditLoading && sortedAuditEvents.length === 0 && (
-              <div className="text-sm text-slate-500">Nenhuma evidência registrada até o momento.</div>
-            )}
-            {sortedAuditEvents.map(event => {
-              const details = describeAuditDetails(event);
-              return (
-                <div key={event.id} className="border border-slate-200 rounded-lg px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-semibold text-slate-700">
-                      {prettyEventType(event.event_type)}
-                    </div>
-                    <div className="text-xs text-slate-500">{formatDateTime(event.created_at)}</div>
-                  </div>
-                  <div className="mt-1 text-[11px] text-slate-400 flex flex-wrap gap-3">
-                    {event.ip_address && <span>IP {event.ip_address}</span>}
-                    {event.user_agent && <span className="truncate">{event.user_agent}</span>}
-                  </div>
-                  {details.length > 0 ? (
-                    <ul className="mt-3 text-sm text-slate-600 space-y-1">
-                      {details.map(detail => (
-                        <li key={`${event.id}-${detail.label}`}>
-                          <span className="font-medium text-slate-700">{detail.label}: </span>
-                          <span>{detail.value}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : event.details ? (
-                    <pre className="mt-3 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3 overflow-x-auto">
-                      {JSON.stringify(event.details, null, 2)}
-                    </pre>
-                  ) : null}
-                </div>
-              );
-            })}
-            {signHistory.length > 0 && (
-              <div className="border border-slate-200 rounded-lg px-4 py-3">
-                <div className="text-sm font-semibold text-slate-700">
-                  Tentativas recentes via agente local
-                </div>
-                <ul className="mt-2 space-y-1">
-                  {signHistory.map((attempt, index) => {
-                    const statusLabel =
-                      attempt.status === "success"
-                        ? "Sucesso"
-                        : attempt.status === "error"
-                        ? "Falha"
-                        : "Pendente";
-                    const statusClass =
-                      attempt.status === "success"
-                        ? "text-emerald-600 font-semibold"
-                        : attempt.status === "error"
-                        ? "text-rose-600 font-semibold"
-                        : "text-sky-600 font-semibold";
-                    return (
-                      <li key={attempt.id ?? `${attempt.at}-${index}`} className="text-xs text-slate-600">
-                        <span className={statusClass}>{statusLabel}</span>
-                        <span className="ml-2">{formatDateTime(attempt.at)}</span>
-                        {attempt.protocol && (
-                          <span className="ml-2 text-slate-500">Protocolo {attempt.protocol}</span>
-                        )}
-                        {attempt.message && (
-                          <div
-                            className={`text-[11px] ${
-                              attempt.status === "error" ? "text-rose-600" : "text-slate-500"
-                            }`}
-                          >
-                            {attempt.message}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="px-6 py-6 text-sm text-slate-500">
-            Selecione um documento para visualizar o protocolo.
-          </div>
+          <div className="px-6 py-6 text-sm text-slate-500">Selecione um documento para visualizar o checklist.</div>
         )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-700">Envio aos signatarios</h2>
+          <h2 className="text-lg font-semibold text-slate-700">Envio aos signatários</h2>
           {selectedDocument && (
             <span
-              className={`text-xs font-medium ${selectedDocument.status === "completed" ? "text-emerald-600" : selectedDocument.status === "in_progress" ? "text-sky-600" : "text-slate-500"}`}
+              className={`text-xs font-medium ${
+                selectedDocument.status === "completed"
+                  ? "text-emerald-600"
+                  : selectedDocument.status === "in_progress"
+                  ? "text-sky-600"
+                  : "text-slate-500"
+              }`}
             >
               Status atual: {selectedDocument.status.replace(/_/g, " ")}
             </span>
@@ -2999,19 +3529,19 @@ export default function DocumentManagerPage({
           <form className="p-6 space-y-4" onSubmit={handleDispatchDocument}>
             {contactIssues.length > 0 && (
               <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                <div className="font-semibold">Pendencias de contato</div>
+                <div className="font-semibold">Pendências de contato</div>
                 <ul className="mt-1 list-disc space-y-1 pl-4">
                   {contactIssues.slice(0, 4).map(issue => (
                     <li key={issue}>{issue}</li>
                   ))}
                   {contactIssues.length > 4 && (
-                    <li className="list-none text-amber-700">... e mais {contactIssues.length - 4} pendencias</li>
+                    <li className="list-none text-amber-700">... e mais {contactIssues.length - 4} pendências</li>
                   )}
                 </ul>
               </div>
             )}
             <p className="text-sm text-slate-600">
-              Envie o documento para os signatarios conforme os canais configurados. O checklist deve estar completo antes do envio.
+              Envie o documento para os signatários conforme os canais configurados. O checklist deve estar completo antes do envio.
             </p>
             {selectedDocument && (
               <div className="rounded border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs text-slate-600 space-y-2">
@@ -3023,12 +3553,7 @@ export default function DocumentManagerPage({
                     readOnly
                   />
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-xs"
-                      onClick={handleCopyShareLink}
-                      disabled={!shareUrl}
-                    >
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={handleCopyShareLink} disabled={!shareUrl}>
                       {shareCopied ? "Link copiado" : "Copiar link"}
                     </button>
                     <button
@@ -3037,17 +3562,17 @@ export default function DocumentManagerPage({
                       onClick={handleResendNotifications}
                       disabled={!canResendNotifications || resendingNotifications}
                     >
-                      {resendingNotifications ? "Reenviando..." : "Reenviar notificacoes"}
+                      {resendingNotifications ? "Reenviando..." : "Reenviar notificações"}
                     </button>
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-500">
-                  Compartilhe o link publico com os participantes ou reenvie as notificacoes automticas quando precisar.
+                  Compartilhe o link público com os participantes ou reenvie as notificações automáticas quando precisar.
                 </p>
               </div>
             )}
             <div className="rounded border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              O e-mail enviado inclui automaticamente o status atual do documento, o prazo configurado e o botao "Assinar agora". Quando o canal for SMS, um link curto e enviado sempre que disponivel.
+              O e-mail enviado inclui automaticamente o status atual do documento, o prazo configurado e o botão "Assinar agora". Quando o canal for SMS, um link curto é enviado sempre que disponível.
             </div>
             {readinessPendingItems.length > 0 && (
               <div className="border border-amber-200 bg-amber-50 text-xs text-amber-700 rounded-lg px-3 py-2">
@@ -3069,190 +3594,255 @@ export default function DocumentManagerPage({
                   onChange={event => setDispatchDeadline(event.target.value)}
                 />
               </label>
-              <div className="text-xs text-slate-500 flex items-end">
-                {parties.length === 0
-                  ? 'Cadastre pelo menos um signatrio.'
-                  : `Serao notificados ${parties.length} participante${parties.length > 1 ? 's' : ''}.`}
-              </div>
             </div>
-            {dispatchError && (
-              <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded px-3 py-2">{dispatchError}</div>
-            )}
-            {dispatchDisabledReason && !canDispatch && (
-              <div className="text-xs text-slate-500">{dispatchDisabledReason}</div>
-            )}
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="btn btn-primary btn-sm flex items-center gap-2"
-                disabled={!canDispatch || dispatching}
-                aria-live="polite"
-                aria-busy={dispatching}
-              >
-                {dispatching ? (
-                  <>
-                    <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-                    Processando...
-                  </>
-                ) : (
-                  'Enviar para assinatura'
-                )}
+            {dispatchError && <div className="text-xs text-rose-600">{dispatchError}</div>}
+            <div className="flex items-center justify-end">
+              <button type="submit" className="btn btn-primary" disabled={!canDispatch || dispatching}>
+                {dispatching ? "Enviando..." : "Enviar para assinatura"}
               </button>
             </div>
           </form>
         ) : (
-          <div className="px-6 py-6 text-sm text-slate-500">Selecione um documento para enviar aos signatarios.</div>
+          <div className="px-6 py-6 text-sm text-slate-500">Selecione um documento para configurar o envio.</div>
         )}
       </div>
+    </div>
+  );
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-700">Assinar com agente local</h2>
-          {signing && <span className="text-xs text-slate-500">Processando...</span>}
-        </div>
-        {selectedDocument && activeVersion ? (
-          <form className="p-6 space-y-3" onSubmit={handleSignWithAgent}>
-            <p className="text-xs text-slate-500">
-              Esta operacao envia o PDF atual para o agente instalado neste computador, aplica o protocolo visual e retorna o arquivo assinado.
-            </p>
-            <label className="flex flex-col text-xs font-semibold text-slate-500">
-              Protocolo (opcional)
-              <input
-                className="mt-1 border rounded px-2 py-1 text-sm"
-                value={signProtocol}
-                onChange={event => setSignProtocol(event.target.value)}
-                placeholder="NS-2025-0001"
-              />
-            </label>
-            <label className="flex flex-col text-xs font-semibold text-slate-500">
-              Acoes registradas (uma por linha)
-              <textarea
-                className="mt-1 border rounded px-2 py-2 text-sm min-h-[80px]"
-                value={signActions}
-                onChange={event => setSignActions(event.target.value)}
-              />
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="flex flex-col text-xs font-semibold text-slate-500">
-                Watermark (opcional)
-                <input
-                  className="mt-1 border rounded px-2 py-1 text-sm"
-                  value={signWatermark}
-                  onChange={event => setSignWatermark(event.target.value)}
-                  placeholder="Documento assinado eletronicamente"
-                />
-              </label>
-              <label className="flex flex-col text-xs font-semibold text-slate-500">
-                Nota de rodape (opcional)
-                <input
-                  className="mt-1 border rounded px-2 py-1 text-sm"
-                  value={signFooterNote}
-                  onChange={event => setSignFooterNote(event.target.value)}
-                  placeholder="Documento valido somente com assinatura digital"
-                />
-              </label>
-            </div>
-            {signError && (
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded px-3 py-2">
-                <span className="flex-1">{signError}</span>
-                {canRetryFromAttempt && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs text-rose-600"
-                    onClick={handleRetrySign}
-                    disabled={retryingAgent || attemptLoading}
-                  >
-                    {retryingAgent ? "Reenviando..." : "Reenviar com mesmos dados"}
-                  </button>
-                )}
-              </div>
-            )}
-            <div className="bg-slate-50 border border-slate-200 rounded px-3 py-3 text-xs text-slate-600">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-slate-700">ltima tentativa do agente</span>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs text-slate-500"
-                  onClick={handleRefreshAttempt}
-                  disabled={attemptLoading}
-                >
-                  {attemptLoading ? "Atualizando..." : "Atualizar"}
-                </button>
-              </div>
-              {attemptLoading ? (
-                <div className="mt-2 text-slate-500">Carregando tentativas...</div>
-              ) : latestAttempt ? (
-                <div className="mt-2 space-y-2">
-                  <div>
-                    <span className={`font-semibold ${latestAttemptMeta?.tone ?? "text-slate-600"}`}>
-                      {latestAttemptMeta?.label ?? latestAttempt.status}
-                    </span>
-                    <span className="ml-2 text-slate-500">
-                      {formatDateTime(latestAttempt.updated_at ?? latestAttempt.created_at)}
-                    </span>
-                  </div>
-                  {latestAttempt.protocol && (
-                    <div>
-                      Protocolo:{" "}
-                      <span className="font-medium text-slate-700">{latestAttempt.protocol}</span>
-                    </div>
-                  )}
-                  {latestAttempt.error_message && (
-                    <div className="text-rose-600">{latestAttempt.error_message}</div>
-                  )}
-                  {latestAttempt.agent_details && Object.keys(latestAttempt.agent_details).length > 0 && (
-                    <ul className="text-[11px] text-slate-500 space-y-0.5">
-                      {Object.entries(latestAttempt.agent_details).map(([key, value]) => (
-                        <li key={key}>
-                          <span className="font-medium text-slate-600">{key.replace(/_/g, " ")}: </span>
-                          <span>{typeof value === "string" ? value : JSON.stringify(value)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {latestAttempt.status === "pending" && (
-                    <div className="text-[11px] text-slate-500">
-                      Aguardando retorno do agente local.
-                    </div>
-                  )}
-                  {canRetryFromAttempt && (
-                    <div className="text-[11px] text-slate-500">
-                      Use o boto acima para reenviar com os mesmos dados.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-2 text-slate-500">Nenhuma tentativa registrada ainda.</div>
-              )}
-            </div>
-            {lastSignInfo?.protocol && (
-              <div className="text-xs text-slate-500">
-                Protocolo registrado: <span className="font-semibold text-slate-700">{lastSignInfo.protocol}</span>
-              </div>
-            )}
-            <div className="flex justify-end">
-              <button type="submit" className="btn btn-primary btn-sm" disabled={signing}>
-                {signing ? 'Assinando...' : 'Assinar via agente'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="px-6 py-8 text-sm text-slate-500">
-            Selecione um documento para enviar ao agente de assinatura local.
+  const renderEvidenceTab = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+      <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-700">Protocolo e evidências</h2>
+        {selectedDocument && (
+          <div className="flex items-center gap-2">
+            {auditLoading && <span className="text-xs text-slate-500">Carregando...</span>}
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => selectedDocument && loadAuditEvents(selectedDocument.id)}
+              disabled={auditLoading}
+            >
+              Atualizar
+            </button>
           </div>
         )}
       </div>
+      {selectedDocument ? (
+        <div className="p-6 space-y-4">
+          {auditError && <div className="text-xs text-rose-600">{auditError}</div>}
+          {!auditError && !auditLoading && sortedAuditEvents.length === 0 && (
+            <div className="text-sm text-slate-500">Nenhuma evidência registrada até o momento.</div>
+          )}
+          {sortedAuditEvents.map(event => {
+            const details = describeAuditDetails(event);
+            const isExpanded = expandedAuditEvents.has(event.id);
+            return (
+              <div key={event.id} className="border border-slate-200 rounded-lg px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    aria-controls={`audit-details-${event.id}`}
+                    onClick={() => toggleAuditEvent(event.id)}
+                    className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold transition ${
+                      isExpanded ? "border-indigo-200 bg-indigo-50 text-indigo-600" : "border-slate-200 text-slate-500"
+                    }`}
+                  >
+                    {isExpanded ? "▾" : "▸"}
+                  </button>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-slate-700">{prettyEventType(event.event_type)}</div>
+                      <div className="text-xs text-slate-500">{formatDateTime(event.created_at)}</div>
+                    </div>
+                    {isExpanded && (
+                      <div id={`audit-details-${event.id}`} className="mt-2 space-y-3">
+                        <div className="text-[11px] text-slate-400 flex flex-wrap gap-3">
+                          {event.ip_address && <span>IP {event.ip_address}</span>}
+                          {event.user_agent && <span className="truncate">{event.user_agent}</span>}
+                        </div>
+                        {details.length > 0 ? (
+                          <ul className="text-sm text-slate-600 space-y-1">
+                            {details.map(detail => (
+                              <li key={`${event.id}-${detail.label}`}>
+                                <span className="font-medium text-slate-700">{detail.label}: </span>
+                                <span>{detail.value}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : event.details ? (
+                          <pre className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-3 overflow-x-auto">
+                            {JSON.stringify(event.details, null, 2)}
+                          </pre>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {signHistory.length > 0 && (
+            <div className="border border-slate-200 rounded-lg px-4 py-3">
+              <div className="text-sm font-semibold text-slate-700">Tentativas recentes via agente local</div>
+              <ul className="mt-2 space-y-1">
+                {signHistory.map((attempt, index) => {
+                  const statusLabel =
+                    attempt.status === "success" ? "Sucesso" : attempt.status === "error" ? "Falha" : "Pendente";
+                  const statusClass =
+                    attempt.status === "success"
+                      ? "text-emerald-600 font-semibold"
+                      : attempt.status === "error"
+                      ? "text-rose-600 font-semibold"
+                      : "text-sky-600 font-semibold";
+                  return (
+                    <li key={attempt.id ?? `${attempt.at}-${index}`} className="text-xs text-slate-600">
+                      <span className={statusClass}>{statusLabel}</span>
+                      <span className="ml-2">{formatDateTime(attempt.at)}</span>
+                      {attempt.protocol && <span className="ml-2 text-slate-500">Protocolo {attempt.protocol}</span>}
+                      {attempt.message && (
+                        <div className={`text-[11px] ${attempt.status === "error" ? "text-rose-600" : "text-slate-500"}`}>
+                          {attempt.message}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="px-6 py-6 text-sm text-slate-500">Selecione um documento para visualizar o protocolo.</div>
+      )}
+    </div>
+  );
+
+  const renderTabHeader = (sticky: boolean) => (
+    <div className={sticky ? "sticky top-4 z-30 space-y-3" : ""}>
+      <div
+        className={`rounded-2xl border border-slate-200 p-4 shadow-sm ${
+          sticky ? "bg-white/95 backdrop-blur supports-[backdrop-filter]:backdrop-blur shadow-md" : "bg-white"
+        }`}
+      >
+        <ol className="flex flex-col gap-3 lg:flex-row">
+          {WORKFLOW_TABS.map((tab, index) => {
+            const status = tabStatus[tab.id];
+            const isActive = activeTab === tab.id;
+            const stepNumber = index + 1;
+            return (
+              <li key={tab.id} className="flex-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  disabled={!status.enabled}
+                  className={`flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                    isActive
+                      ? "border-indigo-500 bg-indigo-50 shadow-sm"
+                      : status.enabled
+                      ? "border-slate-200 bg-white hover:border-indigo-200"
+                      : "border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed"
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                      status.complete ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "border border-slate-300 text-slate-500"
+                    }`}
+                  >
+                    {status.complete ? "✔" : stepNumber}
+                  </span>
+                  <div>
+                    <p className={`text-sm font-semibold ${isActive ? "text-slate-900" : ""}`}>{tab.label}</p>
+                    <p className="text-xs text-slate-500">{tab.description}</p>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </div>
+  );
+
+  const renderActiveTabContent = () => {
+    switch (activeTab) {
+      case "document":
+        return renderDocumentTab();
+      case "flow":
+        return renderFlowTab();
+      case "positions":
+        return renderPositionsTab();
+      case "dispatch":
+        return renderDispatchTab();
+      case "evidence":
+        return renderEvidenceTab();
+      default:
+        return null;
+    }
+  };
+
+  const renderModals = () => (
+    <>
+      {templateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+            <form onSubmit={handleSubmitTemplate} className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <h3 className="text-lg font-semibold text-slate-800">Salvar como modelo</h3>
+                <button
+                  type="button"
+                  className="text-slate-500 transition hover:text-slate-700"
+                  onClick={handleCloseTemplateModal}
+                  disabled={templateSaving}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="px-6 space-y-3">
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Nome do modelo
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    value={templateName}
+                    onChange={event => setTemplateName(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="flex flex-col text-xs font-semibold text-slate-600">
+                  Descrição (opcional)
+                  <input
+                    className="mt-1 border rounded px-3 py-2 text-sm"
+                    value={templateDescription}
+                    onChange={event => setTemplateDescription(event.target.value)}
+                  />
+                </label>
+                <p className="text-xs text-slate-500">
+                  As etapas atuais do fluxo manual serão salvas para reutilização futura. Você ainda poderá ajustar o modelo ao aplicar.
+                </p>
+                <p className="text-xs text-slate-500">
+                  O modelo ficará visível somente para as pessoas da sua área, conforme solicitado na especificação.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCloseTemplateModal} disabled={templateSaving}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={templateSaving || manualFlowPayload.length === 0}>
+                  {templateSaving ? "Salvando..." : "Salvar modelo"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {certificateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-slate-800">Selecionar certificado</h3>
-              <button
-                type="button"
-                className="text-slate-500 transition hover:text-slate-700"
-                onClick={handleCloseCertificateModal}
-              >
-                
+              <button type="button" className="text-slate-500 transition hover:text-slate-700" onClick={handleCloseCertificateModal}>
+                ×
               </button>
             </div>
             <div className="px-6 py-4 space-y-3">
@@ -3261,18 +3851,14 @@ export default function DocumentManagerPage({
               ) : certificatesError ? (
                 <p className="text-sm text-rose-600">{certificatesError}</p>
               ) : certificates.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  Nenhum certificado com chave privada foi encontrado nesta mquina.
-                </p>
+                <p className="text-sm text-slate-500">Nenhum certificado com chave privada foi encontrado nesta máquina.</p>
               ) : (
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                   {certificates.map(cert => (
                     <label
                       key={cert.index}
                       className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 ${
-                        selectedCertificateIndex === cert.index
-                          ? 'border-indigo-500 bg-indigo-50'
-                          : 'border-slate-200 hover:border-slate-300'
+                        selectedCertificateIndex === cert.index ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:border-slate-300"
                       }`}
                     >
                       <input
@@ -3286,12 +3872,8 @@ export default function DocumentManagerPage({
                       <div className="text-sm text-slate-700">
                         <p className="font-semibold">{cert.subject}</p>
                         <p className="text-xs text-slate-500">Emissor: {cert.issuer}</p>
-                        {cert.serial_number && (
-                          <p className="text-xs text-slate-500">Srie: {cert.serial_number}</p>
-                        )}
-                        {cert.thumbprint && (
-                          <p className="text-xs text-slate-500">Thumbprint: {cert.thumbprint}</p>
-                        )}
+                        {cert.serial_number && <p className="text-xs text-slate-500">Série: {cert.serial_number}</p>}
+                        {cert.thumbprint && <p className="text-xs text-slate-500">Thumbprint: {cert.thumbprint}</p>}
                       </div>
                     </label>
                   ))}
@@ -3313,12 +3895,13 @@ export default function DocumentManagerPage({
                 }
                 onClick={handleConfirmCertificateSelection}
               >
-                {signing ? 'Processando...' : 'Assinar agora'}
+                {signing ? "Processando..." : "Assinar agora"}
               </button>
             </div>
           </div>
         </div>
       )}
+<<<<<<< HEAD
 
       {templateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
@@ -3376,5 +3959,58 @@ export default function DocumentManagerPage({
   )}
 </div>
 );
+=======
+    </>
+  );
+
+  if (standaloneView && !selectedDocument) {
+    return (
+      <div className={wrapperClassName}>
+        {headerContent}
+        {limitBanner}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          {standaloneError ?? (standaloneLoading ? "Carregando documento selecionado..." : "Preparando painel do documento...")}
+        </div>
+        {renderModals()}
+      </div>
+    );
+  }
+
+  if (standaloneView || focusMode) {
+    const focusedWrapperClass = standaloneView ? wrapperClassName : "mx-auto flex max-w-6xl flex-col gap-6";
+    return (
+      <div className={focusedWrapperClass}>
+        {standaloneView ? headerContent : null}
+        {standaloneView && limitBanner}
+        {!standaloneView && limitBanner}
+        {renderTabHeader(true)}
+        <div className="space-y-6">{renderActiveTabContent()}</div>
+        {renderModals()}
+      </div>
+    );
+  }
+
+  return (
+    <div className={wrapperClassName}>
+      {headerContent}
+      {!standaloneView && limitBanner}
+      {!standaloneView && onCreateNew && (
+        <div className="flex justify-end">
+          <button type="button" className="btn btn-primary btn-sm" onClick={onCreateNew}>
+            Novo documento
+          </button>
+        </div>
+      )}
+      {!areaReady && !standaloneView && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Selecione uma area para visualizar e criar documentos.
+        </div>
+      )}
+      {renderTabHeader(false)}
+      <div className="space-y-6 mt-2">{renderActiveTabContent()}</div>
+      {renderModals()}
+    </div>
+  );
+>>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 }
 
