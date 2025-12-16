@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-=======
-import {
+﻿import {
   useCallback,
   useEffect,
   useMemo,
@@ -11,7 +8,6 @@ import {
   type MouseEvent,
   type TouchEvent,
 } from "react";
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
 import { useParams } from "react-router-dom";
 import { Document, Page } from "react-pdf";
 import axios from "axios";
@@ -45,24 +41,13 @@ const extractErrorMessage = (err: unknown): string => {
     if (detail && typeof detail === "object" && "error" in detail) {
       return String(detail.error);
     }
-    return err.message || "Falha ao processar a solicita?§?£o.";
+    return err.message || "Falha ao processar a solicita?┬º?┬úo.";
   }
   return err instanceof Error ? err.message : "Falha inesperada.";
 };
 
 const normalizeDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 const toBase64Payload = (value: string) => (value.includes(",") ? value.split(",")[1] : value);
-
-const mapAgentCertificates = (items: AgentCertificate[]): SigningCertificate[] =>
-  items.map((item, index) => ({
-    index: item.index ?? index,
-    subject: item.subject,
-    issuer: item.issuer,
-    serial_number: item.serialNumber,
-    thumbprint: item.thumbprint,
-    not_before: item.notBefore,
-    not_after: item.notAfter,
-  }));
 
 const mapAgentCertificates = (items: AgentCertificate[]): SigningCertificate[] =>
   items.map((item, index) => ({
@@ -118,13 +103,10 @@ export default function PublicSignaturePage() {
   const [signatureImageInputKey, setSignatureImageInputKey] = useState(0);
   const [signatureConsent, setSignatureConsent] = useState(false);
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
-<<<<<<< HEAD
-=======
   const [drawModalOpen, setDrawModalOpen] = useState(false);
   const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawnSignature, setHasDrawnSignature] = useState(false);
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const [currentSigningField, setCurrentSigningField] = useState<DocumentField | null>(null);
   const [fieldSignatureMap, setFieldSignatureMap] = useState<Record<string, { mode: string; preview?: string; value?: string }>>({});
 
@@ -192,7 +174,7 @@ export default function PublicSignaturePage() {
 
   useEffect(() => {
     if (!token) {
-      setError("Token inv?¡lido.");
+      setError("Token inv?┬ílido.");
       setLoading(false);
       return;
     }
@@ -202,9 +184,9 @@ export default function PublicSignaturePage() {
         setMeta(data);
       } catch (err: unknown) {
         if (axios.isAxiosError(err) && err.response?.status === 404) {
-          setError("Link de assinatura inv?¡lido ou expirado. Solicite um novo e-mail.");
+          setError("Link de assinatura inv?┬ílido ou expirado. Solicite um novo e-mail.");
         } else {
-          setError("N?£o foi poss?­vel carregar os dados da assinatura.");
+          setError("N?┬úo foi poss?┬¡vel carregar os dados da assinatura.");
         }
       } finally {
         setLoading(false);
@@ -242,7 +224,7 @@ export default function PublicSignaturePage() {
       .then(response => setFields(response ?? []))
       .catch(() => {
         setFields([]);
-        setFieldsError("Não foi possível carregar os campos configurados.");
+        setFieldsError("N├úo foi poss├¡vel carregar os campos configurados.");
       })
       .finally(() => setFieldsLoading(false));
   }, [token]);
@@ -256,10 +238,10 @@ export default function PublicSignaturePage() {
           const base64 = result.includes(",") ? result.split(",")[1] ?? "" : result;
           resolve(base64);
         } else {
-          reject(new Error("Não foi possível ler a imagem."));
+          reject(new Error("N├úo foi poss├¡vel ler a imagem."));
         }
       };
-      reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+      reader.onerror = () => reject(new Error("N├úo foi poss├¡vel ler a imagem."));
       reader.readAsDataURL(file);
     });
 
@@ -293,7 +275,7 @@ export default function PublicSignaturePage() {
       setFormError(null);
     } catch (err) {
       console.error(err);
-      toast.error("Não foi possível carregar a imagem da assinatura.");
+      toast.error("N├úo foi poss├¡vel carregar a imagem da assinatura.");
     }
   };
 
@@ -326,7 +308,7 @@ export default function PublicSignaturePage() {
 
     if (missingFields.length > 0) {
       const names = missingFields.map(f => f.label || f.field_type).join(", ");
-      const message = `Preencha os campos obrigatórios: ${names}`;
+      const message = `Preencha os campos obrigat├│rios: ${names}`;
       setFormError(message);
       toast.error(message);
       return;
@@ -365,7 +347,7 @@ export default function PublicSignaturePage() {
     if (requiresPhoneConfirmation) {
       const digits = confirmPhoneLast4.replace(/\D/g, "").slice(-4);
       if (digits.length < 4) {
-        const message = "Informe os 4 últimos dígitos do telefone cadastrado.";
+        const message = "Informe os 4 ├║ltimos d├¡gitos do telefone cadastrado.";
         setFormError(message);
         toast.error(message);
         return;
@@ -385,14 +367,6 @@ export default function PublicSignaturePage() {
       if (sig.mode === "typed" && sig.value) {
         fieldPayload.typed_name = sig.value;
       } else if (sig.mode === "image" && sig.preview) {
-<<<<<<< HEAD
-        const [, base64 = sig.preview] = sig.preview.split(",");
-        fieldPayload.signature_image = base64;
-        fieldPayload.signature_image_mime = "image/png";
-        fieldPayload.signature_image_name = "signature.png";
-      } else if (sig.mode === "draw") {
-        fieldPayload.typed_name = "Assinatura desenhada";
-=======
         const base64 = toBase64Payload(sig.preview);
         fieldPayload.signature_image = base64;
         fieldPayload.signature_image_mime = "image/png";
@@ -402,7 +376,6 @@ export default function PublicSignaturePage() {
         fieldPayload.signature_image = base64;
         fieldPayload.signature_image_mime = "image/png";
         fieldPayload.signature_image_name = "signature-draw.png";
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
       }
 
       payload.fields.push(fieldPayload);
@@ -474,18 +447,8 @@ export default function PublicSignaturePage() {
     }
 
     if (type === "draw") {
-<<<<<<< HEAD
-      setFieldSignatureMap(prev => ({
-        ...prev,
-        [currentSigningField.id]: { mode: "draw", value: "Assinatura desenhada" },
-      }));
-      toast.success("Representação de assinatura desenhada registrada.");
-      setSignatureModalOpen(false);
-      setCurrentSigningField(null);
-=======
       setSignatureModalOpen(false);
       setDrawModalOpen(true);
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
       return;
     }
 
@@ -510,8 +473,6 @@ export default function PublicSignaturePage() {
     }
   };
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     if (!drawModalOpen) return;
     const canvas = drawCanvasRef.current;
@@ -605,7 +566,6 @@ export default function PublicSignaturePage() {
     setSignatureModalOpen(true);
   };
 
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
   const loadCertificates = useCallback(async () => {
     setCertLoading(true);
     setCertError(null);
@@ -625,7 +585,7 @@ export default function PublicSignaturePage() {
       const message =
         err instanceof Error
           ? err.message
-          : "Não foi possível acessar o agente local. Verifique se ele está instalado e em execução.";
+          : "N├úo foi poss├¡vel acessar o agente local. Verifique se ele est├í instalado e em execu├º├úo.";
       setCertError(message);
     } finally {
       setCertLoading(false);
@@ -654,7 +614,7 @@ export default function PublicSignaturePage() {
     }
     const selectedCert = certificates.find(cert => cert.index === selectedCertIndex);
     if (!selectedCert) {
-      setCertError("Certificado selecionado n?£o est?¡ mais dispon?­vel.");
+      setCertError("Certificado selecionado n?┬úo est?┬í mais dispon?┬¡vel.");
       return;
     }
     setAgentSigning(true);
@@ -680,7 +640,7 @@ export default function PublicSignaturePage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6 text-sm text-slate-600">
-        Carregandoâ?¦
+        Carregando├ó?┬ª
       </div>
     );
   }
@@ -699,7 +659,7 @@ export default function PublicSignaturePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
         <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-sm text-rose-600 shadow-sm">
-          Dados n?£o dispon?­veis.
+          Dados n?┬úo dispon?┬¡veis.
         </div>
       </div>
     );
@@ -709,7 +669,7 @@ export default function PublicSignaturePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
         <div className="max-w-md rounded-2xl border border-emerald-200 bg-white p-6 text-sm text-emerald-700 shadow-sm">
-          Assinatura registrada com sucesso. Voc?ª pode fechar esta janela.
+          Assinatura registrada com sucesso. Voc?┬¬ pode fechar esta janela.
         </div>
       </div>
     );
@@ -723,25 +683,25 @@ export default function PublicSignaturePage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Fluxo seguro</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-900">Assinatura do documento</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Confirme os dados e siga o m?©todo indicado pelo remetente. O documento pode ser visualizado ao lado.
+              Confirme os dados e siga o m?┬®todo indicado pelo remetente. O documento pode ser visualizado ao lado.
             </p>
           </div>
           <dl className="mt-6 space-y-3 text-sm text-slate-600">
             <div className="flex flex-col">
               <dt className="text-xs uppercase text-slate-500">Documento</dt>
-              <dd className="font-medium text-slate-800">{meta.document_id || "â??"}</dd>
+              <dd className="font-medium text-slate-800">{meta.document_id || "├ó??"}</dd>
             </div>
             <div className="flex flex-col">
               <dt className="text-xs uppercase text-slate-500">Participante</dt>
-              <dd className="font-medium text-slate-800">{meta.participant_id || "â??"}</dd>
+              <dd className="font-medium text-slate-800">{meta.participant_id || "├ó??"}</dd>
             </div>
             <div className="flex flex-col">
               <dt className="text-xs uppercase text-slate-500">Status</dt>
               <dd className="font-medium text-slate-800">{meta.status}</dd>
             </div>
             <div className="flex flex-col">
-              <dt className="text-xs uppercase text-slate-500">Certificado digital obrigat?³rio?</dt>
-              <dd className="font-medium text-slate-800">{requiresCertificate ? "Sim" : "N?£o"}</dd>
+              <dt className="text-xs uppercase text-slate-500">Certificado digital obrigat?┬│rio?</dt>
+              <dd className="font-medium text-slate-800">{requiresCertificate ? "Sim" : "N?┬úo"}</dd>
             </div>
           </dl>
 
@@ -749,11 +709,11 @@ export default function PublicSignaturePage() {
             <div className="mt-6 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h3 className="text-sm font-semibold text-slate-700">Confirme seus dados</h3>
               <p className="text-xs text-slate-500">
-                Preencha as informações abaixo exatamente como foram cadastradas pelo remetente.
+                Preencha as informa├º├Áes abaixo exatamente como foram cadastradas pelo remetente.
               </p>
               {collectTypedName && (
                 <label className="flex flex-col text-xs font-semibold text-slate-600">
-                  Nome digitado {typedNameIsRequired ? "(obrigatório)" : "(opcional)"}
+                  Nome digitado {typedNameIsRequired ? "(obrigat├│rio)" : "(opcional)"}
                   <input
                     className="mt-1 border rounded px-3 py-2 text-sm"
                     value={typedName}
@@ -766,7 +726,7 @@ export default function PublicSignaturePage() {
                     required={typedNameIsRequired}
                   />
                   <span className="mt-1 text-[11px] font-normal text-slate-500">
-                    O nome digitado será registrado no protocolo de auditoria.
+                    O nome digitado ser├í registrado no protocolo de auditoria.
                   </span>
                 </label>
               )}
@@ -783,13 +743,13 @@ export default function PublicSignaturePage() {
                     required
                   />
                   <span className="mt-1 text-[11px] font-normal text-slate-500">
-                    Utilize o mesmo endereço que recebeu o convite ou o código de acesso.
+                    Utilize o mesmo endere├ºo que recebeu o convite ou o c├│digo de acesso.
                   </span>
                 </label>
               )}
               {requiresPhoneConfirmation && (
                 <label className="flex flex-col text-xs font-semibold text-slate-600">
-                  Últimos 4 dígitos do telefone
+                  ├Ültimos 4 d├¡gitos do telefone
                   <input
                     className="mt-1 border rounded px-3 py-2 text-sm"
                     value={confirmPhoneLast4}
@@ -800,13 +760,13 @@ export default function PublicSignaturePage() {
                     required
                   />
                   <span className="mt-1 text-[11px] font-normal text-slate-500">
-                    Informe apenas números para confirmar que você tem acesso ao telefone informado.
+                    Informe apenas n├║meros para confirmar que voc├¬ tem acesso ao telefone informado.
                   </span>
                 </label>
               )}
               {collectSignatureImage && (
                 <div className="flex flex-col text-xs font-semibold text-slate-600">
-                  Imagem da assinatura {signatureImageIsRequired ? "(obrigatória)" : "(opcional)"}
+                  Imagem da assinatura {signatureImageIsRequired ? "(obrigat├│ria)" : "(opcional)"}
                   <input
                     key={signatureImageInputKey}
                     type="file"
@@ -815,13 +775,13 @@ export default function PublicSignaturePage() {
                     onChange={handleSignatureImageChange}
                   />
                   <span className="mt-1 text-[11px] font-normal text-slate-500">
-                    Formatos suportados: PNG ou JPG (máx. 2 MB). A imagem ficará registrada junto ao documento.
+                    Formatos suportados: PNG ou JPG (m├íx. 2 MB). A imagem ficar├í registrada junto ao documento.
                   </span>
                   {signatureImagePreview && (
                     <div className="mt-2 flex items-center gap-3 rounded border border-slate-200 bg-white p-2">
                       <img
                         src={signatureImagePreview}
-                        alt="Pré-visualização da assinatura"
+                        alt="Pr├®-visualiza├º├úo da assinatura"
                         className="h-16 max-w-[160px] rounded border border-slate-100 object-contain"
                       />
                       <div className="flex flex-col gap-1 text-[11px] font-normal text-slate-500">
@@ -848,7 +808,7 @@ export default function PublicSignaturePage() {
                     required
                   />
                   <span className="font-normal text-slate-600">
-                    {consentText} (versão {consentVersion})
+                    {consentText} (vers├úo {consentVersion})
                   </span>
                 </label>
               )}
@@ -887,11 +847,11 @@ export default function PublicSignaturePage() {
               </>
             )}
             <p className="text-xs text-slate-500">
-              Ao continuar voc?ª concorda em registrar sua assinatura eletr?´nica neste documento.
+              Ao continuar voc?┬¬ concorda em registrar sua assinatura eletr?┬┤nica neste documento.
               {agentDownloadUrl ? (
                 <>
                   {" "}
-                  Caso ainda n?£o tenha o agente instalado,{" "}
+                  Caso ainda n?┬úo tenha o agente instalado,{" "}
                   <a
                     href={agentDownloadUrl}
                     target="_blank"
@@ -1003,11 +963,6 @@ export default function PublicSignaturePage() {
                               >
                                 <div className="flex h-full w-full items-center justify-center p-1 text-center">
                                   {fieldSignature ? (
-<<<<<<< HEAD
-                                    <span className="text-[10px] font-bold text-emerald-700">
-                                      Assinado ({fieldSignature.mode})
-                                    </span>
-=======
                                     fieldSignature.preview ? (
                                       <img
                                         src={fieldSignature.preview}
@@ -1023,7 +978,6 @@ export default function PublicSignaturePage() {
                                         Assinado ({fieldSignature.mode})
                                       </span>
                                     )
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
                                   ) : (
                                     <>
                                       <span className="text-[10px] font-bold text-rose-700 uppercase">
@@ -1089,7 +1043,7 @@ export default function PublicSignaturePage() {
               <div>
                 <h3 className="text-lg font-semibold text-slate-800">Selecionar certificado digital</h3>
                 <p className="text-xs text-slate-500">
-                  Escolha um certificado instalado nesta m?¡quina para continuar com a assinatura.
+                  Escolha um certificado instalado nesta m?┬íquina para continuar com a assinatura.
                 </p>
               </div>
               <button
@@ -1103,12 +1057,12 @@ export default function PublicSignaturePage() {
             </div>
             <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
               {certLoading ? (
-                <p className="text-sm text-slate-500">Carregando certificados do agenteâ?¦</p>
+                <p className="text-sm text-slate-500">Carregando certificados do agente├ó?┬ª</p>
               ) : certError ? (
                 <p className="text-sm text-rose-600">{certError}</p>
               ) : certificates.length === 0 ? (
                 <p className="text-sm text-slate-500">
-                  Nenhum certificado foi encontrado. Verifique se o agente est?¡ em execu?§?£o e tente novamente.
+                  Nenhum certificado foi encontrado. Verifique se o agente est?┬í em execu?┬º?┬úo e tente novamente.
                 </p>
               ) : (
                 certificates.map(cert => (
@@ -1132,7 +1086,7 @@ export default function PublicSignaturePage() {
                       <p className="font-semibold">{cert.subject}</p>
                       <p className="text-xs text-slate-500">Emissor: {cert.issuer}</p>
                       {cert.serial_number && (
-                        <p className="text-xs text-slate-500">S?©rie: {cert.serial_number}</p>
+                        <p className="text-xs text-slate-500">S?┬®rie: {cert.serial_number}</p>
                       )}
                       {cert.thumbprint && (
                         <p className="text-xs text-slate-500">Thumbprint: {cert.thumbprint}</p>
@@ -1234,14 +1188,12 @@ export default function PublicSignaturePage() {
           </div>
         </div>
       )}
-<<<<<<< HEAD
-=======
       {drawModalOpen && currentSigningField && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-slate-800">Desenhar assinatura</h3>
             <p className="mt-1 text-sm text-slate-600">
-              Use o mouse ou o toque para desenhar sua assinatura exatamente como deseja que apareça no documento.
+              Use o mouse ou o toque para desenhar sua assinatura exatamente como deseja que apare├ºa no documento.
             </p>
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <canvas
@@ -1259,7 +1211,7 @@ export default function PublicSignaturePage() {
                 onTouchEnd={handleDrawEnd}
               />
               <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                <span>{hasDrawnSignature ? "Assinatura pronta para ser aplicada." : "Desenhe dentro da área acima."}</span>
+                <span>{hasDrawnSignature ? "Assinatura pronta para ser aplicada." : "Desenhe dentro da ├írea acima."}</span>
                 <button type="button" className="btn btn-ghost btn-xs" onClick={handleClearDrawCanvas}>
                   Limpar
                 </button>
@@ -1281,7 +1233,6 @@ export default function PublicSignaturePage() {
           </div>
         </div>
       )}
->>>>>>> 805b8ab (Ajusta fluxo em guias e assinatura desenhada)
     </div>
   );
 }
