@@ -3,11 +3,10 @@ from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, status, Request, Depends
+from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import RedirectResponse
-from sqlalchemy.orm import Session
 
 from app.api.routes import (
     admin,
@@ -27,7 +26,7 @@ from app.api.routes import (
     workflows,
 )
 from app.core.config import settings
-from app.db.session import init_db, get_db
+from app.db.session import init_db, SessionLocal
 from app.core.logging_setup import logger
 
 
@@ -83,6 +82,9 @@ def create_app() -> FastAPI:
         expose_headers=["*"],
     )
 
+    # ===============================================================
+    # Middleware extra de CORS
+    # ===============================================================
     @application.middleware("http")
     async def add_cors_headers(request: Request, call_next):
         try:
@@ -119,20 +121,24 @@ def create_app() -> FastAPI:
     # 🚨 ROTA TEMPORÁRIA — PROMOVER USUÁRIO A OWNER
     # ===============================================================
     @application.post("/_make_owner", include_in_schema=False)
-    def make_owner(db: Session = Depends(get_db)):
+    def make_owner():
         email = "luciano.dias888@gmail.com"
 
-        result = db.execute(
-            "UPDATE users SET profile = 'owner' WHERE email = :email",
-            {"email": email},
-        )
-        db.commit()
+        db = SessionLocal()
+        try:
+            result = db.execute(
+                "UPDATE users SET profile = 'owner' WHERE email = :email",
+                {"email": email},
+            )
+            db.commit()
 
-        if result.rowcount == 0:
-            return {"status": "not_found", "email": email}
+            if result.rowcount == 0:
+                return {"status": "not_found", "email": email}
 
-        logger.warning(f"[TEMP] Usuário promovido a owner: {email}")
-        return {"status": "ok", "email": email}
+            logger.warning(f"[TEMP] Usuário promovido a owner: {email}")
+            return {"status": "ok", "email": email}
+        finally:
+            db.close()
 
     # ===============================================================
     # ROTAS
