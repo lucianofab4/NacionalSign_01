@@ -1,7 +1,5 @@
 ﻿from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-import os
-from pathlib import Path
 
 from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,9 +29,33 @@ from app.db.session import init_db, engine
 from app.core.logging_setup import logger
 
 
+OWNER_EMAIL = "luciano.dias888@gmail.com"
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    # Inicializa banco / tabelas
     init_db()
+
+    # 🔥 FORÇA O OWNER SEMPRE QUE O APP SOBE (RENDER FREE SAFE)
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET profile = 'owner'
+                    WHERE lower(email) = :email
+                    """
+                ),
+                {"email": OWNER_EMAIL.lower()},
+            )
+            logger.warning(
+                f"[BOOTSTRAP OWNER] linhas afetadas={result.rowcount} email={OWNER_EMAIL}"
+            )
+    except Exception as exc:
+        logger.error(f"[BOOTSTRAP OWNER] erro ao forçar owner: {exc}")
+
     yield
 
 
@@ -50,6 +72,7 @@ def create_app() -> FastAPI:
         debug=settings.debug,
         lifespan=lifespan,
     )
+
     logger.info("NacionalSign API inicializada")
 
     # ===============================================================
@@ -117,26 +140,6 @@ def create_app() -> FastAPI:
             "Access-Control-Allow-Credentials": "true",
         }
         return JSONResponse(content={"ok": True}, headers=headers)
-
-    # ===============================================================
-    # 🚨 ROTA TEMPORÁRIA — PROMOVER USUÁRIO A OWNER
-    # (USANDO ENGINE DIRETO — COMPATÍVEL COM SEU PROJETO)
-    # ===============================================================
-    @application.post("/_make_owner", include_in_schema=False)
-    def make_owner():
-        email = "luciano.dias888@gmail.com"
-
-        with engine.begin() as conn:
-            result = conn.execute(
-                text("UPDATE users SET profile = 'owner' WHERE email = :email"),
-                {"email": email},
-            )
-
-            if result.rowcount == 0:
-                return {"status": "not_found", "email": email}
-
-        logger.warning(f"[TEMP] Usuário promovido a owner: {email}")
-        return {"status": "ok", "email": email}
 
     # ===============================================================
     # ROTAS
