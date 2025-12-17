@@ -3,10 +3,11 @@ from contextlib import asynccontextmanager
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, status, Request
+from fastapi import FastAPI, status, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import RedirectResponse
+from sqlalchemy.orm import Session
 
 from app.api.routes import (
     admin,
@@ -26,7 +27,7 @@ from app.api.routes import (
     workflows,
 )
 from app.core.config import settings
-from app.db.session import init_db
+from app.db.session import init_db, get_db
 from app.core.logging_setup import logger
 
 
@@ -44,7 +45,11 @@ def _normalize_origin(value: str | None) -> str | None:
 
 
 def create_app() -> FastAPI:
-    application = FastAPI(title=settings.project_name, debug=settings.debug, lifespan=lifespan)
+    application = FastAPI(
+        title=settings.project_name,
+        debug=settings.debug,
+        lifespan=lifespan,
+    )
     logger.info("NacionalSign API inicializada")
 
     # ===============================================================
@@ -78,7 +83,6 @@ def create_app() -> FastAPI:
         expose_headers=["*"],
     )
 
-    # Middleware extra
     @application.middleware("http")
     async def add_cors_headers(request: Request, call_next):
         try:
@@ -112,6 +116,25 @@ def create_app() -> FastAPI:
         return JSONResponse(content={"ok": True}, headers=headers)
 
     # ===============================================================
+    # 🚨 ROTA TEMPORÁRIA — PROMOVER USUÁRIO A OWNER
+    # ===============================================================
+    @application.post("/_make_owner", include_in_schema=False)
+    def make_owner(db: Session = Depends(get_db)):
+        email = "luciano.dias888@gmail.com"
+
+        result = db.execute(
+            "UPDATE users SET profile = 'owner' WHERE email = :email",
+            {"email": email},
+        )
+        db.commit()
+
+        if result.rowcount == 0:
+            return {"status": "not_found", "email": email}
+
+        logger.warning(f"[TEMP] Usuário promovido a owner: {email}")
+        return {"status": "ok", "email": email}
+
+    # ===============================================================
     # ROTAS
     # ===============================================================
     application.include_router(health.router, prefix="/health")
@@ -132,7 +155,6 @@ def create_app() -> FastAPI:
 
     # ===============================================================
     # REDIRECIONAMENTO PARA ASSINATURA PÚBLICA
-    # (AGORA FUNCIONANDO)
     # ===============================================================
     @application.get("/public/sign/{token}", include_in_schema=False)
     def public_sign_entry(token: str) -> RedirectResponse:
@@ -148,18 +170,11 @@ def create_app() -> FastAPI:
         )
 
     # ===============================================================
-    # REMOVIDO COMPLETAMENTE O SERVE_FRONTEND
-    # ===============================================================
-
-    frontend_enabled = False
-
-    # ===============================================================
     # ROTA RAIZ
     # ===============================================================
-    if not frontend_enabled:
-        @application.get("/")
-        def root():
-            return {"service": settings.project_name}
+    @application.get("/")
+    def root():
+        return {"service": settings.project_name}
 
     return application
 
