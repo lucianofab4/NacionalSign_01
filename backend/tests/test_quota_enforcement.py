@@ -78,3 +78,21 @@ def test_user_quota_enforced(db_session: Session, tenant_with_plan):
     # At this point users count is 2 (owner + user1). One more should exceed quota=2
     with pytest.raises(ValueError, match="quota"):
         svc.create_user(t.id, payload(2))
+
+
+def test_user_creation_requires_deliverable_email(db_session: Session, tenant_with_plan):
+    svc = UserService(db_session)
+    tenant = tenant_with_plan["tenant"]
+    area = tenant_with_plan["area"]
+
+    payload = UserCreate(
+        email="user@nonexistent-unittest-domain-123456.com",
+        cpf="00000000000",
+        full_name="Usuário Teste",
+        password="secret",
+        profile=UserRole.USER,
+        default_area_id=area.id,
+    )
+
+    with pytest.raises(ValueError, match="E-mail inválido"):
+        svc.create_user(tenant.id, payload)

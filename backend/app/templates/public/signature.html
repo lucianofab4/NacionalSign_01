@@ -270,6 +270,14 @@
                         </div>
                         {% endif %}
 
+                        {% if signature.requires_cpf_confirmation %}
+                        <div class="field-group">
+                            <label for="confirm_cpf">Confirme seu CPF (obrigatorio)</label>
+                            <input type="text" id="confirm_cpf" name="confirm_cpf" maxlength="14" placeholder="Somente numeros" value="{{ form_data.get('confirm_cpf', '') if form_data else '' }}" required>
+                            <p class="input-hint">Informe o CPF cadastrado utilizando apenas numeros.</p>
+                        </div>
+                        {% endif %}
+
                         {% if signature.collect_signature_image %}
                         <div class="field-group">
                             <label for="signature_image">Imagem da assinatura{% if signature.signature_image_required %} (obrigatoria){% endif %}</label>

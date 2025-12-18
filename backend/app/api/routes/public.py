@@ -217,6 +217,8 @@ def _build_signature_template_context(
 
     collect_typed_name = allow_typed_name or typed_name_required
     collect_signature_image = allow_signature_image or signature_image_required
+    signature_method_label = (party.signature_method or "electronic").strip().lower() if party else "electronic"
+    requires_cpf_confirmation = signature_method_label.startswith("digital") and bool(getattr(party, "cpf", None))
 
     require_email_confirmation = bool(party and party.require_email and getattr(party, "email", None))
     require_phone_confirmation = bool(party and party.require_phone and getattr(party, "phone_number", None))
@@ -240,6 +242,7 @@ def _build_signature_template_context(
         "consent_text": CONSENT_TEXT_DEFAULT,
         "consent_version": CONSENT_VERSION_DEFAULT,
         "available_fields": available_fields,
+        "requires_cpf_confirmation": requires_cpf_confirmation,
     }
 
 
@@ -434,7 +437,7 @@ def signature_page(token: str, request: Request, session: Session = Depends(get_
             token=token,
             error="Token inválido ou expirado.",
             signature=None,
-            form_data={"typed_name": "", "confirm_email": "", "confirm_phone_last4": ""},
+            form_data={"typed_name": "", "confirm_email": "", "confirm_phone_last4": "", "confirm_cpf": ""},
         )
         return HTMLResponse(content, status_code=status.HTTP_404_NOT_FOUND)
 
@@ -453,7 +456,7 @@ def signature_page(token: str, request: Request, session: Session = Depends(get_
         signature=signature_summary,
         error=None,
         message=None,
-        form_data={"typed_name": "", "confirm_email": "", "confirm_phone_last4": ""},
+        form_data={"typed_name": "", "confirm_email": "", "confirm_phone_last4": "", "confirm_cpf": ""},
     )
     return HTMLResponse(content)
 
@@ -521,6 +524,7 @@ def public_sign_with_certificate(
         typed_name=payload.typed_name,
         confirm_email=payload.confirm_email,
         confirm_phone_last4=payload.confirm_phone_last4,
+        confirm_cpf=payload.confirm_cpf,
         certificate_subject=payload.certificate_subject,
         certificate_issuer=payload.certificate_issuer,
         certificate_serial=payload.certificate_serial,
@@ -559,6 +563,7 @@ async def act_on_signature_page(
     typed_name: str | None = Form(None),
     confirm_email: str | None = Form(None),
     confirm_phone_last4: str | None = Form(None),
+    confirm_cpf: str | None = Form(None),
     consent: str | None = Form(None),
     consent_text: str | None = Form(None),
     consent_version: str | None = Form(None),
@@ -579,7 +584,7 @@ async def act_on_signature_page(
             error="Token inválido ou expirado.",
             signature=None,
             message=None,
-            form_data={"typed_name": "", "confirm_email": "", "confirm_phone_last4": ""},
+            form_data={"typed_name": "", "confirm_email": "", "confirm_phone_last4": "", "confirm_cpf": ""},
         )
         return HTMLResponse(content, status_code=status.HTTP_404_NOT_FOUND)
 
@@ -591,7 +596,13 @@ async def act_on_signature_page(
     typed_name_value = typed_name.strip() if typed_name else None
     confirm_email_value = confirm_email.strip() if confirm_email else None
     confirm_phone_value = confirm_phone_last4.strip() if confirm_phone_last4 else None
-    form_data = {"typed_name": typed_name_value or "", "confirm_email": confirm_email_value or "", "confirm_phone_last4": confirm_phone_value or ""}
+    confirm_cpf_value = confirm_cpf.strip() if confirm_cpf else None
+    form_data = {
+        "typed_name": typed_name_value or "",
+        "confirm_email": confirm_email_value or "",
+        "confirm_phone_last4": confirm_phone_value or "",
+        "confirm_cpf": confirm_cpf_value or "",
+    }
     consent_given = (consent or "").strip().lower() in {"1", "true", "yes", "on"}
     consent_version_value = (consent_version or CONSENT_VERSION_DEFAULT).strip() or CONSENT_VERSION_DEFAULT
     consent_text_value = (
@@ -625,6 +636,7 @@ async def act_on_signature_page(
             consent_version=consent_version_value,
             confirm_email=confirm_email_value,
             confirm_phone_last4=confirm_phone_value,
+            confirm_cpf=confirm_cpf_value,
         )
         updated_request = workflow_service.record_public_signature_action(
             token,

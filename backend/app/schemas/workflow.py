@@ -101,6 +101,7 @@ class SignatureAction(BaseModel):
     consent_version: str | None = None
     confirm_email: str | None = None
     confirm_phone_last4: str | None = None
+    confirm_cpf: str | None = None
     certificate_subject: str | None = None
     certificate_issuer: str | None = None
     certificate_serial: str | None = None

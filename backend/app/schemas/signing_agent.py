@@ -20,6 +20,7 @@ class SignPdfRequest(BaseModel):
     actions: Optional[List[str]] = None
     cert_index: Optional[int] = Field(default=None, ge=0)
     thumbprint: Optional[str] = Field(default=None, max_length=128)
+    confirm_cpf: Optional[str] = Field(default=None, max_length=32)
 
     signature_page: Optional[int] = Field(default=None, ge=1, le=9999)
     signature_width: Optional[float] = Field(default=None, gt=0)
@@ -74,6 +75,7 @@ class SigningCertificate(BaseModel):
 class PublicAgentSessionStartPayload(BaseModel):
     cert_index: int | None = Field(default=None, ge=0)
     thumbprint: str | None = Field(default=None, max_length=128)
+    confirm_cpf: str | None = Field(default=None, max_length=32)
 
 
 class PublicAgentSessionStartResponse(BaseModel):

@@ -85,3 +85,98 @@ def test_update_party_changes_channel(db_session: Session, base_document: dict) 
 
     with pytest.raises(ValueError):
         service.update_party(party, DocumentPartyUpdate(notification_channel="push"))
+
+
+def test_add_party_requires_cpf_for_digital_signature(db_session: Session, base_document: dict) -> None:
+    service = DocumentService(db_session)
+    document = base_document["document"]
+
+    with pytest.raises(ValueError):
+        service.add_party(
+            document,
+            DocumentPartyCreate(
+                full_name="Digital Signer",
+                email="digital@example.com",
+                role="signer",
+                signature_method="digital",
+            ),
+        )
+
+    party = service.add_party(
+        document,
+        DocumentPartyCreate(
+            full_name="Com CPF",
+            email="valid@example.com",
+            role="signer",
+            signature_method="digital",
+            cpf="123.456.789-01",
+        ),
+    )
+    assert party.cpf == "12345678901"
+
+
+def test_update_party_to_digital_requires_cpf(db_session: Session, base_document: dict) -> None:
+    service = DocumentService(db_session)
+    document = base_document["document"]
+    party = service.add_party(
+        document,
+        DocumentPartyCreate(
+            full_name="Signer",
+            email="signer@example.com",
+            role="signer",
+            signature_method="electronic",
+        ),
+    )
+
+    with pytest.raises(ValueError):
+        service.update_party(party, DocumentPartyUpdate(signature_method="digital"))
+
+    updated = service.update_party(
+        party,
+        DocumentPartyUpdate(signature_method="digital", cpf="987.654.321-00"),
+    )
+    assert updated.signature_method == "digital"
+    assert updated.cpf == "98765432100"
+
+    with pytest.raises(ValueError):
+        service.update_party(updated, DocumentPartyUpdate(cpf=None))
+
+
+def test_add_party_rejects_duplicate_roles(db_session: Session, base_document: dict) -> None:
+    service = DocumentService(db_session)
+    document = base_document["document"]
+
+    service.add_party(
+        document,
+        DocumentPartyCreate(
+            full_name="CEO 1",
+            email="ceo1@example.com",
+            role="ceo",
+        ),
+    )
+
+    with pytest.raises(ValueError):
+        service.add_party(
+            document,
+            DocumentPartyCreate(
+                full_name="CEO 2",
+                email="ceo2@example.com",
+                role="ceo",
+            ),
+        )
+
+
+def test_update_party_rejects_duplicate_roles(db_session: Session, base_document: dict) -> None:
+    service = DocumentService(db_session)
+    document = base_document["document"]
+    first = service.add_party(
+        document,
+        DocumentPartyCreate(full_name="CEO", email="ceo@example.com", role="ceo"),
+    )
+    second = service.add_party(
+        document,
+        DocumentPartyCreate(full_name="CFO", email="cfo@example.com", role="cfo"),
+    )
+
+    with pytest.raises(ValueError):
+        service.update_party(second, DocumentPartyUpdate(role=first.role))

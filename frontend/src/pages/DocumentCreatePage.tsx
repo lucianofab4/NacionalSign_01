@@ -1,5 +1,6 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { isAxiosError } from "axios";
 
 import { createDocumentRecord, uploadDocumentVersion } from "../api";
 
@@ -40,7 +41,16 @@ export default function DocumentCreatePage({ areaId, onFinished }: DocumentCreat
       onFinished(doc.id);
     } catch (error) {
       console.error(error);
-      toast.error("Falha ao criar ou enviar o documento.");
+      if (isAxiosError(error)) {
+        const detail = error.response?.data?.detail;
+        if (detail) {
+          toast.error(typeof detail === "string" ? detail : JSON.stringify(detail));
+        } else {
+          toast.error("Falha ao criar ou enviar o documento.");
+        }
+      } else {
+        toast.error("Falha ao criar ou enviar o documento.");
+      }
     } finally {
       setSaving(false);
     }

@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import json
+import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Iterable, Any, Dict, Tuple
@@ -51,10 +52,55 @@ class WorkflowService:
         "image/jpg": ".jpg",
     }
     DEFAULT_SIGNATURE_IMAGE_EXT = ".png"
+    _CERTIFICATE_CPF_PATTERNS = (
+        re.compile(r"CPF\s*[:=]?\s*([0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2})", re.IGNORECASE),
+        re.compile(r"SERIALNUMBER\s*[:=]?\s*(?:CPF\s*)?([0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2})", re.IGNORECASE),
+        re.compile(r"2\.16\.76\.1\.3\.1\s*[:=]?\s*([0-9]{11})", re.IGNORECASE),
+    )
+    _GENERIC_CPF_PATTERN = re.compile(r"([0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2})")
 
     def __init__(self, session: Session, notification_service: NotificationService | None = None) -> None:
         self.session = session
         self.notification_service = notification_service
+
+    @staticmethod
+    def _normalize_cpf_value(value: str | None) -> str | None:
+        if not value:
+            return None
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if len(digits) != 11:
+            return None
+        return digits
+
+    @classmethod
+    def _extract_certificate_cpf(cls, *values: str | None) -> str | None:
+        for raw in values:
+            normalized = cls._extract_cpf_from_text(raw)
+            if normalized:
+                return normalized
+        return None
+
+    @classmethod
+    def _extract_cpf_from_text(cls, raw: str | None) -> str | None:
+        if not raw:
+            return None
+        text = raw.strip()
+        if not text:
+            return None
+        for pattern in cls._CERTIFICATE_CPF_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                digits = "".join(ch for ch in match.group(1) if ch.isdigit())
+                if len(digits) == 11:
+                    return digits
+        upper = text.upper()
+        if any(keyword in upper for keyword in ("CPF", "SERIALNUMBER", "2.16.76.1.3.1")):
+            generic = cls._GENERIC_CPF_PATTERN.search(text)
+            if generic:
+                digits = "".join(ch for ch in generic.group(1) if ch.isdigit())
+                if len(digits) == 11:
+                    return digits
+        return None
 
     # Template management -------------------------------------------------
     def _prepare_template_config(self, steps: list[WorkflowStepConfig]) -> str:
@@ -672,6 +718,19 @@ class WorkflowService:
                     signed_pdf_meta,
                 ]
             )
+            certificate_cpf = (
+                self._extract_certificate_cpf(
+                    certificate_subject,
+                    certificate_issuer,
+                    certificate_serial,
+                    certificate_thumbprint,
+                    signature_protocol,
+                    signature_type_label,
+                    signature_authentication,
+                )
+                if certificate_used
+                else None
+            )
 
             evidence_options: Dict[str, Any] = {
                 "typed_name": bool(typed_name_value),
@@ -681,12 +740,15 @@ class WorkflowService:
             if available_fields:
                 evidence_options["available_fields"] = available_fields
             if certificate_used:
-                evidence_options["certificate"] = {
+                certificate_payload = {
                     "subject": certificate_subject,
                     "issuer": certificate_issuer,
                     "serial": certificate_serial,
                     "thumbprint": certificate_thumbprint,
                 }
+                if certificate_cpf:
+                    certificate_payload["cpf"] = certificate_cpf
+                evidence_options["certificate"] = certificate_payload
             if signature_protocol:
                 evidence_options["signature_protocol"] = signature_protocol
             if signature_type_label:
@@ -702,8 +764,21 @@ class WorkflowService:
                 if party and getattr(party, "signature_method", None)
                 else "electronic"
             )
-            if signature_method == "digital" and not certificate_used:
-                raise ValueError("Esta assinatura exige uso de certificado digital.")
+            normalized_party_cpf = self._normalize_cpf_value(getattr(party, "cpf", None)) if party else None
+            confirmed_cpf = self._normalize_cpf_value(payload.confirm_cpf)
+            if signature_method == "digital":
+                if not certificate_used:
+                    raise ValueError("Esta assinatura exige uso de certificado digital.")
+                if not normalized_party_cpf:
+                    raise ValueError("CPF do participante é obrigatório para assinaturas com certificado digital.")
+                if certificate_cpf:
+                    if certificate_cpf != normalized_party_cpf:
+                        raise ValueError("O CPF do certificado digital não corresponde ao participante cadastrado.")
+                else:
+                    if not confirmed_cpf:
+                        raise ValueError("Confirme o CPF cadastrado para continuar.")
+                    if confirmed_cpf != normalized_party_cpf:
+                        raise ValueError("O CPF informado não corresponde ao participante cadastrado.")
             if signature_method == "electronic" and certificate_used:
                 raise ValueError("Esta assinatura deve ser realizada de forma eletrônica.")
 
@@ -753,6 +828,8 @@ class WorkflowService:
                 evidence_log["certificate_issuer"] = certificate_issuer
                 evidence_log["certificate_serial"] = certificate_serial
                 evidence_log["certificate_thumbprint"] = certificate_thumbprint
+                if certificate_cpf:
+                    evidence_log["certificate_cpf"] = certificate_cpf
                 if signature_protocol:
                     evidence_log["signature_protocol"] = signature_protocol
                 if signature_type_label:

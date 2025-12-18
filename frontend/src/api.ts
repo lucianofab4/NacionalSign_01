@@ -133,6 +133,7 @@ export interface PublicMeta {
   consent_text?: string | null;
   consent_version?: string | null;
   available_fields?: string[] | null;
+  requires_cpf_confirmation?: boolean;
 }
 
 export const archiveDocument = async (documentId: string, archived = true): Promise<DocumentRecord> => {
@@ -1414,6 +1415,7 @@ export const postPublicSign = async (
     typed_name?: string;
     confirm_email?: string;
     confirm_phone_last4?: string;
+    confirm_cpf?: string;
     signature_image?: string;
     signature_image_mime?: string;
     signature_image_name?: string;
@@ -1430,6 +1432,7 @@ export interface PublicAgentSignPayload {
   cert_index?: number;
   thumbprint?: string;
   protocol?: string;
+  confirm_cpf?: string;
 }
 
 export interface PublicAgentSignResponse {

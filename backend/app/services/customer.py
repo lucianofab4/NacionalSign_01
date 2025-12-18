@@ -15,6 +15,7 @@ from app.models.tenant import Tenant, Area
 from app.models.user import User
 from app.schemas.customer import CustomerCreate, CustomerUpdate
 from app.services.storage import get_storage, normalize_storage_path
+from app.utils.email_validation import normalize_deliverable_email
 from app.utils.security import get_password_hash
 
 
@@ -126,9 +127,10 @@ class CustomerService:
     ) -> tuple[Tenant, User]:
         if customer.tenant_id:
             raise ValueError("Customer already activated")
-        admin_email = (email or customer.responsible_email or "").strip().lower()
-        if not admin_email:
+        admin_email_raw = (email or customer.responsible_email or "").strip()
+        if not admin_email_raw:
             raise ValueError("Responsible email is required for activation")
+        admin_email = normalize_deliverable_email(admin_email_raw)
         admin_name = (full_name or customer.responsible_name or "").strip()
         if not admin_name:
             raise ValueError("Responsible name is required for activation")

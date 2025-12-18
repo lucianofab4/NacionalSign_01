@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.models.tenant import Area
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserUpdate
+from app.utils.email_validation import normalize_deliverable_email
 from app.utils.security import get_password_hash, generate_secure_password
 from app.models.billing import Subscription, Plan
 from sqlmodel import func
@@ -29,7 +30,7 @@ class UserService:
         tenant_uuid = UUID(str(tenant_id))
         area_id = self._validate_area(payload.default_area_id, tenant_uuid)
 
-        normalized_email = payload.email.strip().lower()
+        normalized_email = normalize_deliverable_email(payload.email)
         normalized_cpf = payload.cpf.strip() if payload.cpf else ""
 
         subscription = self.session.exec(

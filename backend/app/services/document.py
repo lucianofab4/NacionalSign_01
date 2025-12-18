@@ -57,12 +57,8 @@ from app.services.storage import (
 )
 from app.schemas.signing_agent import SignPdfRequest
 
-try:
-    from pypdf import PdfReader, PdfWriter  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
-    PdfReader = PdfWriter = None
-
 BASE_STORAGE = resolve_storage_root()
+_PDF_SUPPORT: tuple[object, object] | None = None
 
 
 class DocumentService:
@@ -172,6 +168,37 @@ class DocumentService:
         if method not in self._ALLOWED_SIGNATURE_METHODS:
             raise ValueError("signature_method must be 'electronic' or 'digital'")
         return method
+
+    def _ensure_unique_role(self, document: Document, role: str | None, *, ignore_party_id: UUID | None = None) -> None:
+        normalized = (role or "").strip().lower()
+        if not normalized:
+            raise ValueError("Papel é obrigatório para o participante.")
+        statement = (
+            select(DocumentParty)
+            .where(DocumentParty.document_id == document.id)
+            .where(func.lower(DocumentParty.role) == normalized)
+        )
+        if ignore_party_id:
+            statement = statement.where(DocumentParty.id != ignore_party_id)
+        existing = self.session.exec(statement).first()
+        if existing:
+            raise ValueError("Já existe outro participante com este papel. Utilize nomes diferentes para cada papel.")
+
+    @staticmethod
+    def _normalize_cpf_value(value: str | None) -> str | None:
+        if not value:
+            return None
+        digits = "".join(ch for ch in value if ch.isdigit())
+        return digits or None
+
+    def _ensure_cpf_for_signature_method(self, method: str, cpf_value: str | None) -> None:
+        normalized_method = self._validate_signature_method(method)
+        if normalized_method != self.SIGNATURE_METHOD_DIGITAL:
+            return
+
+        normalized_cpf = self._normalize_cpf_value(cpf_value)
+        if not normalized_cpf or len(normalized_cpf) != 11:
+            raise ValueError("CPF é obrigatório para assinaturas com certificado digital.")
 
     def _build_protocol_summary(self, document: Document) -> list[str]:
         """
@@ -300,12 +327,14 @@ class DocumentService:
         """
         Aplica marca d'água discreta + acrescenta páginas de protocolo visual.
         """
-        if not PdfReader or not PdfWriter:
+        try:
+            reader_cls, writer_cls = self._require_pdf_support()
+        except ValueError:
             return original_bytes
 
         try:
-            reader = PdfReader(io.BytesIO(original_bytes))
-            writer = PdfWriter()
+            reader = reader_cls(io.BytesIO(original_bytes))
+            writer = writer_cls()
 
             fields_by_id: dict[str, DocumentField] = {
                 str(field.id): field for field in (document_fields or [])
@@ -350,7 +379,7 @@ class DocumentService:
 
                 c.save()
                 overlay_stream.seek(0)
-                overlay_reader = PdfReader(overlay_stream)
+                overlay_reader = reader_cls(overlay_stream)
                 page.merge_page(overlay_reader.pages[0])
                 writer.add_page(page)
 
@@ -396,7 +425,7 @@ class DocumentService:
             c.save()
 
             proto_stream.seek(0)
-            protocol_reader = PdfReader(proto_stream)
+            protocol_reader = reader_cls(proto_stream)
             for proto_page in protocol_reader.pages:
                 writer.add_page(proto_page)
 
@@ -591,8 +620,10 @@ class DocumentService:
             data["email"] = data["email"].strip()
         if data.get("phone_number"):
             data["phone_number"] = data["phone_number"].strip()
-        if data.get("cpf"):
-            data["cpf"] = data["cpf"].strip()
+        if data.get("role"):
+            data["role"] = data["role"].strip()
+        if "cpf" in data:
+            data["cpf"] = self._normalize_cpf_value(data.get("cpf"))
         if data.get("company_name"):
             data["company_name"] = data["company_name"].strip()
         if data.get("company_tax_id"):
@@ -607,6 +638,8 @@ class DocumentService:
             data["order_index"] = next_index
 
         data["signature_method"] = self._validate_signature_method(data.get("signature_method"))
+        self._ensure_unique_role(document, data.get("role"))
+        self._ensure_cpf_for_signature_method(data["signature_method"], data.get("cpf"))
 
         party = DocumentParty(document_id=document.id, **data)
         self.session.add(party)
@@ -643,8 +676,10 @@ class DocumentService:
             data["email"] = data["email"].strip()
         if "phone_number" in data and data["phone_number"]:
             data["phone_number"] = data["phone_number"].strip()
-        if "cpf" in data and data["cpf"]:
-            data["cpf"] = data["cpf"].strip()
+        if "cpf" in data:
+            data["cpf"] = self._normalize_cpf_value(data["cpf"])
+        if "role" in data and data["role"]:
+            data["role"] = data["role"].strip()
         if "company_name" in data and data["company_name"]:
             data["company_name"] = data["company_name"].strip()
         if "company_tax_id" in data:
@@ -665,23 +700,31 @@ class DocumentService:
         if "signature_method" in data:
             data["signature_method"] = self._validate_signature_method(data["signature_method"])
 
+        document = self.session.get(Document, party.document_id)
+        if not document:
+            raise ValueError("Document not found for participant.")
+
+        effective_role = data.get("role", party.role)
+        effective_method = data.get("signature_method", party.signature_method)
+        effective_cpf = data.get("cpf", party.cpf)
+        self._ensure_unique_role(document, effective_role, ignore_party_id=party.id)
+        self._ensure_cpf_for_signature_method(effective_method, effective_cpf)
+
         for field, value in data.items():
             setattr(party, field, value)
 
         self.session.add(party)
-        document = self.session.get(Document, party.document_id)
-        if document:
-            self._sync_contact_from_data(
-                document.tenant_id,
-                {
-                    "full_name": party.full_name,
-                    "email": party.email,
-                    "phone_number": party.phone_number,
-                    "cpf": party.cpf,
-                    "company_name": party.company_name,
-                    "company_tax_id": party.company_tax_id,
-                },
-            )
+        self._sync_contact_from_data(
+            document.tenant_id,
+            {
+                "full_name": party.full_name,
+                "email": party.email,
+                "phone_number": party.phone_number,
+                "cpf": party.cpf,
+                "company_name": party.company_name,
+                "company_tax_id": party.company_tax_id,
+            },
+        )
         self.session.commit()
         self.session.refresh(party)
         return party
@@ -833,11 +876,10 @@ class DocumentService:
             final_pdf = normalized.pdf_bytes
             final_name = normalized.filename
         else:
-            if not PdfReader or not PdfWriter:
-                raise ValueError("Biblioteca PDF indisponÃ­vel para unificar arquivos.")
-            writer = PdfWriter()
+            reader_cls, writer_cls = self._require_pdf_support()
+            writer = writer_cls()
             for normalized, _, _ in normalized_items:
-                reader = PdfReader(io.BytesIO(normalized.pdf_bytes))
+                reader = reader_cls(io.BytesIO(normalized.pdf_bytes))
                 for page in reader.pages:
                     writer.add_page(page)
             buffer = io.BytesIO()
@@ -888,6 +930,20 @@ class DocumentService:
         self.session.refresh(version)
         self.session.refresh(document)
         return version
+
+    def _require_pdf_support(self) -> tuple[object, object]:
+        global _PDF_SUPPORT
+        if _PDF_SUPPORT is not None:
+            return _PDF_SUPPORT
+        try:
+            from pypdf import PdfReader as _Reader, PdfWriter as _Writer  # type: ignore
+        except ImportError as exc:  # pragma: no cover - environment dependent
+            raise ValueError(
+                "Biblioteca 'pypdf' indisponível para unificar arquivos. "
+                "Instale o pacote 'pypdf' e reinicie o servidor."
+            ) from exc
+        _PDF_SUPPORT = (_Reader, _Writer)
+        return _PDF_SUPPORT
 
     def update_document(self, document: Document, payload: DocumentUpdate) -> Document:
         update_data = payload.model_dump(exclude_unset=True)

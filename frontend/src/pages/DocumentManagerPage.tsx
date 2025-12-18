@@ -727,6 +727,19 @@ export default function DocumentManagerPage({
     [documentReady, flowConfigured, signaturePositionsReady, dispatchReady, sortedAuditEvents.length, signHistory.length],
   );
 
+  const highlightedTabId = useMemo(() => {
+    for (let index = 1; index < WORKFLOW_TABS.length; index += 1) {
+      const previousTab = WORKFLOW_TABS[index - 1];
+      const currentTab = WORKFLOW_TABS[index];
+      const previousStatus = tabStatus[previousTab.id];
+      const currentStatus = tabStatus[currentTab.id];
+      if (previousStatus?.complete && currentStatus?.enabled && !currentStatus.complete) {
+        return currentTab.id;
+      }
+    }
+    return null;
+  }, [tabStatus]);
+
   useEffect(() => {
     const currentStatus = tabStatus[activeTab];
     if (currentStatus && !currentStatus.enabled) {
@@ -2881,6 +2894,7 @@ export default function DocumentManagerPage({
           {WORKFLOW_TABS.map((tab, index) => {
             const status = tabStatus[tab.id];
             const isActive = activeTab === tab.id;
+            const shouldPulse = highlightedTabId === tab.id && !isActive;
             const stepNumber = index + 1;
             return (
               <li key={tab.id} className="flex-1">
@@ -2894,7 +2908,7 @@ export default function DocumentManagerPage({
                       : status.enabled
                       ? "border-slate-200 bg-white hover:border-indigo-200"
                       : "border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed"
-                  }`}
+                  } ${shouldPulse ? "ring-2 ring-offset-2 ring-orange-200 animate-pulse" : ""}`}
                 >
                   <span
                     className={`mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${

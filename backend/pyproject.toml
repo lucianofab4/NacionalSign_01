@@ -30,6 +30,7 @@ python-docx = "^1.1.0"
 Pillow = "^10.3.0"
 pypdf = "^5.1.0"
 psycopg = {version = "^3.1", extras = ["binary"]}
+email-validator = "^2.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.0"

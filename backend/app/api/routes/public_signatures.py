@@ -145,6 +145,7 @@ def _build_public_summary(
     signature_method_raw = (party.signature_method or "electronic").strip().lower() if party else "electronic"
     normalized_method = "digital" if signature_method_raw.startswith("digital") else "electronic"
     requires_certificate = normalized_method == "digital"
+    requires_cpf_confirmation = bool(requires_certificate and getattr(party, "cpf", None))
     requires_email_confirmation = bool(party and party.require_email and getattr(party, "email", None))
     requires_phone_confirmation = bool(party and party.require_phone and getattr(party, "phone_number", None))
     if hasattr(request.status, "value"):
@@ -170,6 +171,7 @@ def _build_public_summary(
         supports_certificate=supports_certificate,
         requires_certificate=requires_certificate,
         signature_method=normalized_method,
+        requires_cpf_confirmation=requires_cpf_confirmation,
     )
 
 def _finalize_public_signing_attempt(
@@ -227,7 +229,12 @@ def _finalize_public_signing_attempt(
 
     workflow_service.record_public_signature_action(
         token=token,
-        payload=SignatureAction(action="sign", signature_type="digital", token=token),
+        payload=SignatureAction(
+            action="sign",
+            signature_type="digital",
+            token=token,
+            confirm_cpf=getattr(payload, "confirm_cpf", None),
+        ),
         ip=ip_address,
         user_agent=user_agent,
     )
@@ -262,6 +269,7 @@ class PublicMeta(BaseModel):
     consent_text: str | None = None
     consent_version: str | None = None
     available_fields: list[str] | None = None
+    requires_cpf_confirmation: bool = False
     can_sign: bool = False
 
 
@@ -307,6 +315,8 @@ def get_public_meta(token: str, session: Session = Depends(get_db)) -> PublicMet
 
     signature_method_raw = (party.signature_method or "electronic").strip().lower() if party else "electronic"
     normalized_signature_method = "digital" if signature_method_raw.startswith("digital") else signature_method_raw
+    requires_certificate = _requires_certificate(party)
+    requires_cpf_confirmation = bool(requires_certificate and getattr(party, "cpf", None))
     preview_url, download_url = _build_preview_urls(token)
     signer_tax_id = getattr(party, "cpf", None)
     can_sign = request.status in {SignatureRequestStatus.PENDING, SignatureRequestStatus.SENT}
@@ -314,7 +324,7 @@ def get_public_meta(token: str, session: Session = Depends(get_db)) -> PublicMet
     return PublicMeta(
         document_id=str(document.id),
         participant_id=str(step.party_id or (party.id if party else "")),
-        requires_certificate=_requires_certificate(party),
+        requires_certificate=requires_certificate,
         status=request.status.value if hasattr(request.status, "value") else str(request.status),
         document_name=document.name,
         signer_name=party.full_name if party else None,
@@ -336,6 +346,7 @@ def get_public_meta(token: str, session: Session = Depends(get_db)) -> PublicMet
         preview_url=preview_url,
         download_url=download_url,
         signer_tax_id=signer_tax_id,
+        requires_cpf_confirmation=requires_cpf_confirmation,
     )
 
 @router.get("/{token}/fields", response_model=List[DocumentFieldRead])

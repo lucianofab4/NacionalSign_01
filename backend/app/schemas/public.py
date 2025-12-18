@@ -53,6 +53,7 @@ class PublicSignatureRead(BaseModel):
     supports_certificate: bool = False
     requires_certificate: bool = False
     signature_method: str = "electronic"
+    requires_cpf_confirmation: bool = False
 
 
 class PublicSignatureMeta(BaseModel):
@@ -72,6 +73,7 @@ class PublicSignatureMeta(BaseModel):
     signature_method: str = "electronic"
     signer_tax_id: str | None = None
     typed_name_required: bool = False
+    requires_cpf_confirmation: bool = False
 
 
 
@@ -85,6 +87,7 @@ class PublicCertificateSignPayload(BaseModel):
     typed_name: str | None = None
     confirm_email: str | None = None
     confirm_phone_last4: str | None = None
+    confirm_cpf: str | None = None
 
 class PublicSignatureAction(BaseModel):
     action: str
@@ -98,6 +101,7 @@ class PublicSignatureAction(BaseModel):
     consent_version: str | None = None
     confirm_email: str | None = None
     confirm_phone_last4: str | None = None
+    confirm_cpf: str | None = None
     certificate_subject: str | None = None
     certificate_issuer: str | None = None
     certificate_serial: str | None = None

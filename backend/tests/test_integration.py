@@ -2,7 +2,6 @@
 
 import base64
 
-import hashlib
 
 from uuid import UUID
 
@@ -372,6 +371,8 @@ def test_public_signature_with_certificate_payload(client: TestClient, db_sessio
             "email": admin_email,
             "role": "signer",
             "order_index": 1,
+            "signature_method": "digital",
+            "cpf": "12345678901",
         },
         headers=headers,
     )
@@ -412,7 +413,7 @@ def test_public_signature_with_certificate_payload(client: TestClient, db_sessio
         "signed_pdf": signed_pdf_b64,
         "signed_pdf_name": "assinatura-final.pdf",
         "signed_pdf_mime": "application/pdf",
-        "certificate_subject": "CN=Participante Certificado",
+        "certificate_subject": "CN=Participante Certificado, SERIALNUMBER=CPF 123.456.789-01",
         "certificate_issuer": "Autoridade Virtual",
         "certificate_serial": "123456789",
         "certificate_thumbprint": "ABCDEF123",
@@ -428,26 +429,107 @@ def test_public_signature_with_certificate_payload(client: TestClient, db_sessio
     assert body["supports_certificate"] is True
 
     db_session.expire_all()
+
+
+def test_public_signature_certificate_cpf_mismatch(client: TestClient, db_session: Session) -> None:
+    token, admin_email = register_and_login(client, "public-cert-mismatch@example.com", "password123")
+    headers = auth_headers(token)
+
+    area_resp = client.get(f"{settings.api_v1_str}/tenants/areas", headers=headers)
+    area_id = UUID(area_resp.json()[0]["id"])
+
+    doc_resp = client.post(
+        f"{settings.api_v1_str}/documents",
+        json={"name": "Contrato Cert Mismatch", "area_id": str(area_id)},
+        headers=headers,
+    )
+    assert doc_resp.status_code == status.HTTP_201_CREATED
+    document_id = UUID(doc_resp.json()["id"])
+
+    pdf_bytes = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
+    version_resp = client.post(
+        f"{settings.api_v1_str}/documents/{document_id}/versions",
+        files={"file": ("contrato.pdf", pdf_bytes, "application/pdf")},
+        headers=headers,
+    )
+    assert version_resp.status_code == status.HTTP_201_CREATED
+
+    party_resp = client.post(
+        f"{settings.api_v1_str}/documents/{document_id}/parties",
+        json={
+            "full_name": "Participante Certificado",
+            "email": admin_email,
+            "role": "signer",
+            "order_index": 1,
+            "signature_method": "digital",
+            "cpf": "98765432100",
+        },
+        headers=headers,
+    )
+    assert party_resp.status_code == status.HTTP_201_CREATED
+
+    dispatch_resp = client.post(
+        f"{settings.api_v1_str}/workflows/documents/{document_id}",
+        json={"deadline_at": None},
+        headers=headers,
+    )
+    assert dispatch_resp.status_code == status.HTTP_201_CREATED
+    workflow_id = UUID(dispatch_resp.json()["id"])
+
+    db_session.expire_all()
+    step = db_session.exec(
+        select(WorkflowStep).where(WorkflowStep.workflow_id == workflow_id)
+    ).first()
+    assert step is not None
+
+    request_obj = db_session.exec(
+        select(SignatureRequest).where(SignatureRequest.workflow_step_id == step.id)
+    ).first()
+    assert request_obj is not None
+
+    db_session.expire_all()
+    workflow_service = WorkflowService(db_session)
+    token_value = workflow_service.issue_signature_token(request_obj.id)
+    db_session.commit()
+
+    signed_pdf_bytes = b"assinatura-digital"
+    signed_pdf_b64 = base64.b64encode(signed_pdf_bytes).decode("ascii")
+
+    mismatch_payload = {
+        "action": "sign",
+        "typed_name": "Participante Certificado",
+        "consent": True,
+        "confirm_email": admin_email,
+        "signed_pdf": signed_pdf_b64,
+        "signed_pdf_name": "assinatura-final.pdf",
+        "signed_pdf_mime": "application/pdf",
+        "certificate_subject": "CN=Participante Certificado, SERIALNUMBER=CPF 123.456.789-01",
+        "certificate_issuer": "Autoridade Virtual",
+        "certificate_serial": "123456789",
+        "certificate_thumbprint": "ABCDEF123",
+        "signature_protocol": "PROTO-000",
+        "signature_type": "ICP-Brasil",
+        "signature_authentication": "Certificado digital",
+    }
+
+    public_resp = client.post(f"/public/signatures/{token_value}", json=mismatch_payload)
+    assert public_resp.status_code == status.HTTP_400_BAD_REQUEST
+    assert "CPF do certificado digital" in public_resp.json()["detail"]
     updated_request = db_session.get(SignatureRequest, request_obj.id)
     assert updated_request is not None
-    assert updated_request.status == SignatureRequestStatus.SIGNED
+    assert updated_request.status == SignatureRequestStatus.SENT
 
     signature_entry = db_session.exec(
         select(Signature).where(Signature.signature_request_id == request_obj.id)
     ).first()
-    assert signature_entry is not None
-    assert signature_entry.signature_type == SignatureType.DIGITAL
-    assert signature_entry.certificate_serial == "123456789"
-    expected_digest = hashlib.sha256(signed_pdf_bytes).hexdigest()
-    assert signature_entry.digest_sha256 == expected_digest
+    assert signature_entry is None
 
     artifact = db_session.exec(
         select(AuditArtifact)
         .where(AuditArtifact.document_id == document_id)
         .where(AuditArtifact.artifact_type == "signature_pdf")
     ).first()
-    assert artifact is not None
-    assert artifact.sha256 == expected_digest
+    assert artifact is None
 
 
 def test_admin_templates_page(client: TestClient, db_session: Session) -> None:

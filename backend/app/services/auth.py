@@ -13,6 +13,7 @@ from app.schemas.auth import (
     TwoFactorSetupResponse,
     TwoFactorVerifyRequest,
 )
+from app.utils.email_validation import normalize_deliverable_email
 from app.utils.security import (
     TokenType,
     build_otpauth_url,
@@ -36,7 +37,8 @@ class AuthService:
         if existing:
             raise ValueError("Tenant already exists")
 
-        existing_user = self.session.exec(select(User).where(User.email == payload.admin_email)).first()
+        admin_email = normalize_deliverable_email(payload.admin_email)
+        existing_user = self.session.exec(select(User).where(User.email == admin_email)).first()
         if existing_user:
             raise ValueError("User already exists")
 
@@ -51,7 +53,7 @@ class AuthService:
         admin_user = User(
             tenant_id=tenant.id,
             default_area_id=default_area.id,
-            email=payload.admin_email,
+            email=admin_email,
             cpf=payload.admin_cpf,
             full_name=payload.admin_full_name,
             password_hash=get_password_hash(payload.admin_password),
