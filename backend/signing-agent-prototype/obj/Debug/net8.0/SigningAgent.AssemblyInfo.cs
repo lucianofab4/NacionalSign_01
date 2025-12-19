@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SigningAgent")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+194d6f9bfbc026c0903dd037a5ec137de69a88db")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1dceed9a71c913dbcce82c026b47df985611b671")]
 [assembly: System.Reflection.AssemblyProductAttribute("SigningAgent")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SigningAgent")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
