@@ -2,7 +2,7 @@ import io
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
@@ -51,9 +51,6 @@ SIGNATURE_MARKERS = (
 )
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
-FilesParam = Annotated[UploadFile | list[UploadFile], File()]
-SingleFileParam = Annotated[UploadFile, File()]
 
 
 def _resolve_storage_file_path(storage_path: str | None) -> Path | None:
@@ -644,8 +641,7 @@ def list_parties(
 async def upload_version(
     document_id: UUID,
     request: Request,
-    files: FilesParam | None = None,
-    file: SingleFileParam | None = None,
+    files: List[UploadFile] = File(...),
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> DocumentVersionRead:
@@ -654,26 +650,14 @@ async def upload_version(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    upload_items: list[UploadFile] = []
-
-    def _extend_uploads(candidate: UploadFile | list[UploadFile] | None) -> None:
-        if candidate is None:
-            return
-        if isinstance(candidate, UploadFile):
-            upload_items.append(candidate)
-            return
-        for item in candidate:
-            if isinstance(item, UploadFile):
-                upload_items.append(item)
-
-    _extend_uploads(files)
-    if file:
-        upload_items.append(file)
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhum arquivo foi enviado.")
 
     try:
-        version = await document_service.add_version(document, current_user.id, upload_items)
+        version = await document_service.add_version(document, current_user.id, files)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
     version_read = _build_version_read(session, document_service, document, version)
     audit_service.record_event(
         event_type="document_version_uploaded",
