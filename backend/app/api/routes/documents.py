@@ -52,8 +52,8 @@ SIGNATURE_MARKERS = (
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-FilesParam = Annotated[UploadFile | list[UploadFile] | None, File(default=None)]
-SingleFileParam = Annotated[UploadFile | None, File(default=None)]
+FilesParam = Annotated[UploadFile | list[UploadFile], File()]
+SingleFileParam = Annotated[UploadFile, File()]
 
 
 def _resolve_storage_file_path(storage_path: str | None) -> Path | None:
@@ -644,8 +644,8 @@ def list_parties(
 async def upload_version(
     document_id: UUID,
     request: Request,
-    files: FilesParam = None,
-    file: SingleFileParam = None,
+    files: FilesParam | None = None,
+    file: SingleFileParam | None = None,
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> DocumentVersionRead:
