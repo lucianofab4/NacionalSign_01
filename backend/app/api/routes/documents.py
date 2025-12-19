@@ -2,7 +2,7 @@ import io
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
@@ -51,6 +51,9 @@ SIGNATURE_MARKERS = (
 )
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+FilesParam = Annotated[UploadFile | list[UploadFile] | None, File(default=None)]
+SingleFileParam = Annotated[UploadFile | None, File(default=None)]
 
 
 def _resolve_storage_file_path(storage_path: str | None) -> Path | None:
@@ -641,8 +644,8 @@ def list_parties(
 async def upload_version(
     document_id: UUID,
     request: Request,
-    files: list[UploadFile] | None = File(default=None),
-    file: UploadFile | None = File(default=None),
+    files: FilesParam = None,
+    file: SingleFileParam = None,
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> DocumentVersionRead:
@@ -652,8 +655,18 @@ async def upload_version(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     upload_items: list[UploadFile] = []
-    if files:
-        upload_items.extend([item for item in files if item is not None])
+
+    def _extend_uploads(candidate: UploadFile | list[UploadFile] | None) -> None:
+        if candidate is None:
+            return
+        if isinstance(candidate, UploadFile):
+            upload_items.append(candidate)
+            return
+        for item in candidate:
+            if isinstance(item, UploadFile):
+                upload_items.append(item)
+
+    _extend_uploads(files)
     if file:
         upload_items.append(file)
 
