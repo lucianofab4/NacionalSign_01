@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import Any, Mapping
 from uuid import uuid4
 import secrets
 import string
@@ -20,7 +20,13 @@ class TokenType(str, Enum):
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
-def _create_token(subject: str, tenant_id: str, expires_delta: timedelta, token_type: TokenType) -> str:
+def _create_token(
+    subject: str,
+    tenant_id: str | None,
+    expires_delta: timedelta,
+    token_type: TokenType,
+    extra_claims: Mapping[str, Any] | None = None,
+) -> str:
     expire = datetime.utcnow() + expires_delta
     to_encode = {
         "sub": subject,
@@ -29,17 +35,19 @@ def _create_token(subject: str, tenant_id: str, expires_delta: timedelta, token_
         "token_type": token_type.value,
         "jti": str(uuid4()),
     }
+    if extra_claims:
+        to_encode.update(extra_claims)
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
-def create_access_token(subject: str, tenant_id: str) -> str:
+def create_access_token(subject: str, tenant_id: str | None, extra_claims: Mapping[str, Any] | None = None) -> str:
     delta = timedelta(minutes=settings.access_token_expire_minutes)
-    return _create_token(subject, tenant_id, delta, TokenType.ACCESS)
+    return _create_token(subject, tenant_id, delta, TokenType.ACCESS, extra_claims)
 
 
-def create_refresh_token(subject: str, tenant_id: str) -> str:
+def create_refresh_token(subject: str, tenant_id: str | None, extra_claims: Mapping[str, Any] | None = None) -> str:
     delta = timedelta(minutes=settings.refresh_token_expire_minutes)
-    return _create_token(subject, tenant_id, delta, TokenType.REFRESH)
+    return _create_token(subject, tenant_id, delta, TokenType.REFRESH, extra_claims)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

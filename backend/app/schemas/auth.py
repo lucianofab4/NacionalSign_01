@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -6,13 +8,22 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     must_change_password: bool = False
+    active_tenant_id: str | None = None
+    active_tenant_name: str | None = None
+    home_tenant_id: str | None = None
+    impersonating: bool = False
+    impersonated_tenant_id: str | None = None
+    impersonated_tenant_name: str | None = None
 
 
 class TokenPayload(BaseModel):
     sub: str
-    tenant_id: str
+    tenant_id: str | None = None
     token_type: str
     exp: int
+    home_tenant_id: str | None = None
+    impersonation: bool | None = None
+    impersonated_tenant_id: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -33,6 +44,11 @@ class RegisterRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class ImpersonateTenantRequest(BaseModel):
+    tenant_id: UUID
+    reason: str | None = None
 
 
 class TwoFactorSetupResponse(BaseModel):

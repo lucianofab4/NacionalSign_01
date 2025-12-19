@@ -10,6 +10,7 @@ from app.models.tenant import Area, Tenant
 
 
 class UserRole(str, Enum):
+    SUPER_ADMIN = "super_admin"
     OWNER = "owner"
     ADMIN = "admin"
     AREA_MANAGER = "area_manager"

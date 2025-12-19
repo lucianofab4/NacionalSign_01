@@ -1113,22 +1113,14 @@ export const uploadDocumentVersion = async (documentId: string, files: File | Fi
     throw new Error('Nenhum arquivo selecionado.');
   }
 
-  const form = new FormData();
-  if (fileList.length > 1) {
+    const form = new FormData();
     fileList.forEach((file, index) => {
       const filename = file.name || `arquivo-${index + 1}.pdf`;
       form.append('files', file, filename);
     });
-  } else {
-    const single = fileList[0];
-    if (single) {
-      const primaryName = single.name || 'documento.pdf';
-      form.append('file', single, primaryName);
-    }
-  }
-  const response = await api.post(`/api/v1/documents/${documentId}/versions`, form);
-  return response.data as DocumentVersion;
-};
+    const response = await api.post(`/api/v1/documents/${documentId}/versions`, form);
+    return response.data as DocumentVersion;
+  };
 
 export const searchContacts = async (query: string): Promise<ContactDirectoryEntry[]> => {
   const response = await api.get("/api/v1/contacts", { params: { q: query } });

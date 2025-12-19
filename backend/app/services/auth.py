@@ -1,10 +1,11 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.models.tenant import Area, Tenant
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -63,7 +64,7 @@ class AuthService:
         self.session.commit()
         self.session.refresh(admin_user)
 
-        return self._build_tokens(admin_user)
+        return self._build_tokens(admin_user, active_tenant=tenant)
 
     def authenticate(self, payload: LoginRequest) -> Token:
         statement = select(User).where(User.email == payload.username)
@@ -97,7 +98,8 @@ class AuthService:
         if not user or not user.is_active:
             raise ValueError("Invalid token")
 
-        return self._build_tokens(user)
+        tenant_override = self._resolve_active_tenant(self._safe_uuid(token_data.get("tenant_id")))
+        return self._build_tokens(user, active_tenant=tenant_override)
 
     def initiate_two_factor(self, user: User) -> TwoFactorSetupResponse:
         secret = generate_totp_secret()
@@ -140,11 +142,61 @@ class AuthService:
         self.session.refresh(user)
         return user, temporary_password
 
-    def _build_tokens(self, user: User) -> Token:
-        access_token = create_access_token(str(user.id), str(user.tenant_id))
-        refresh_token = create_refresh_token(str(user.id), str(user.tenant_id))
+    def impersonate_tenant(self, actor: User, tenant: Tenant) -> Token:
+        db_actor = self.session.get(User, actor.id)
+        if not db_actor or db_actor.profile != UserRole.SUPER_ADMIN.value:
+            raise ValueError("Impersonation not allowed")
+        if not tenant:
+            raise ValueError("Tenant not found")
+        return self._build_tokens(db_actor, active_tenant=tenant)
+
+    def stop_impersonation(self, actor: User) -> Token:
+        db_actor = self.session.get(User, actor.id)
+        if not db_actor or db_actor.profile != UserRole.SUPER_ADMIN.value:
+            raise ValueError("Action not allowed")
+        return self._build_tokens(db_actor)
+
+    def _resolve_active_tenant(self, tenant_id: UUID | None) -> Tenant | None:
+        if not tenant_id:
+            return None
+        return self.session.get(Tenant, tenant_id)
+
+    @staticmethod
+    def _safe_uuid(value: str | None) -> UUID | None:  # pragma: no cover - defensive parsing
+        if not value:
+            return None
+        try:
+            return UUID(str(value))
+        except ValueError:
+            return None
+
+    def _build_tokens(self, user: User, active_tenant: Tenant | None = None) -> Token:
+        tenant = active_tenant or self._resolve_active_tenant(getattr(user, "tenant_id", None))
+        active_tenant_id = tenant.id if tenant else getattr(user, "tenant_id", None)
+        tenant_rel = getattr(user, "tenant", None)
+        active_tenant_name = tenant.name if tenant else getattr(tenant_rel, "name", None)
+        home_tenant_id = getattr(user, "tenant_id", None)
+        impersonating = bool(tenant and home_tenant_id and tenant.id != home_tenant_id)
+
+        extra_claims = {
+            "home_tenant_id": str(home_tenant_id) if home_tenant_id else None,
+            "impersonation": impersonating,
+        }
+        if impersonating and tenant:
+            extra_claims["impersonated_tenant_id"] = str(tenant.id)
+
+        tenant_scope = str(active_tenant_id) if active_tenant_id else None
+        access_token = create_access_token(str(user.id), tenant_scope, extra_claims)
+        refresh_token = create_refresh_token(str(user.id), tenant_scope, extra_claims)
+
         return Token(
             access_token=access_token,
             refresh_token=refresh_token,
             must_change_password=bool(getattr(user, "must_change_password", False)),
+            active_tenant_id=str(active_tenant_id) if active_tenant_id else None,
+            active_tenant_name=active_tenant_name,
+            home_tenant_id=str(home_tenant_id) if home_tenant_id else None,
+            impersonating=impersonating,
+            impersonated_tenant_id=str(tenant.id) if impersonating and tenant else None,
+            impersonated_tenant_name=tenant.name if impersonating and tenant else None,
         )

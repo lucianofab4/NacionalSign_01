@@ -1,10 +1,13 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_roles
 from app.core.config import settings
 from app.schemas.auth import (
+    ImpersonateTenantRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
@@ -13,6 +16,8 @@ from app.schemas.auth import (
 from app.services.audit import AuditService
 from app.services.auth import AuthService
 from app.services.notification import NotificationService
+from app.models.user import User, UserRole
+from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -122,3 +127,50 @@ def forgot_password(
         },
     )
     return {"status": "ok", "must_change_password": True}
+
+
+@router.post("/impersonate", response_model=Token)
+def start_impersonation(
+    payload: ImpersonateTenantRequest,
+    current_user: Annotated[User, Depends(require_roles(UserRole.SUPER_ADMIN))],
+    session: Session = Depends(get_db),
+) -> Token:
+    auth_service, audit_service = _services(session)
+    tenant = session.get(Tenant, payload.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    try:
+        token = auth_service.impersonate_tenant(current_user, tenant)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+    audit_service.record_event(
+        event_type="impersonation_started",
+        actor_id=current_user.id,
+        actor_role=current_user.profile,
+        details={
+            "target_tenant_id": str(tenant.id),
+            "target_tenant_name": tenant.name,
+            "reason": payload.reason,
+        },
+    )
+    return token
+
+
+@router.post("/impersonate/stop", response_model=Token)
+def stop_impersonation(
+    current_user: Annotated[User, Depends(require_roles(UserRole.SUPER_ADMIN))],
+    session: Session = Depends(get_db),
+) -> Token:
+    auth_service, audit_service = _services(session)
+    try:
+        token = auth_service.stop_impersonation(current_user)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+    audit_service.record_event(
+        event_type="impersonation_stopped",
+        actor_id=current_user.id,
+        actor_role=current_user.profile,
+    )
+    return token
