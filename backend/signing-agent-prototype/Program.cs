@@ -1,13 +1,15 @@
 ﻿using CommandLine;
-using SigningAgentPrototype.Models;
-using SigningAgentPrototype.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using SigningAgentPrototype.Models;
+using SigningAgentPrototype.Services;
 
 namespace SigningAgentPrototype;
 
@@ -109,6 +111,11 @@ internal static class Program
 
     private static void RunServe(ServeOptions options)
     {
+        if (IsPortInUse(options.Port, options.BindAddress))
+        {
+            return;
+        }
+
         using var host = new SigningAgentHost(options.Port, options.BindAddress);
 
         host.Started += (_, _) =>
@@ -314,6 +321,27 @@ internal static class Program
         }
 
         return builder.ToString();
+    }
+
+    private static bool IsPortInUse(int port, string? bindAddress)
+    {
+        var ip = string.IsNullOrWhiteSpace(bindAddress)
+            ? IPAddress.Loopback
+            : IPAddress.TryParse(bindAddress, out var parsed)
+                ? parsed
+                : IPAddress.Loopback;
+
+        try
+        {
+            var listener = new TcpListener(ip, port);
+            listener.Start();
+            listener.Stop();
+            return false;
+        }
+        catch (SocketException)
+        {
+            return true;
+        }
     }
 
     [Verb("list", HelpText = "Lista certificados disponiveis.")]

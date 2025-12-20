@@ -339,7 +339,6 @@ C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\creat
 C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\hostfxr.dll
 C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\hostpolicy.dll
 C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\mscordaccore.dll
-C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\mscordaccore_amd64_amd64_8.0.2125.47513.dll
 C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\mscordbi.dll
 C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\mscorrc.dll
 C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\msquic.dll
@@ -356,3 +355,4 @@ C:\nacionalSign\backend\signing-agent-prototype\obj\Release\net8.0\win-x64\refin
 C:\nacionalSign\backend\signing-agent-prototype\obj\Release\net8.0\win-x64\SigningAgent.pdb
 C:\nacionalSign\backend\signing-agent-prototype\obj\Release\net8.0\win-x64\SigningAgent.genruntimeconfig.cache
 C:\nacionalSign\backend\signing-agent-prototype\obj\Release\net8.0\win-x64\ref\SigningAgent.dll
+C:\nacionalSign\backend\signing-agent-prototype\bin\Release\net8.0\win-x64\mscordaccore_amd64_amd64_8.0.2225.52707.dll

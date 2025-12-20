@@ -11,6 +11,7 @@ import CustomersPage from './pages/CustomersPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import PublicSignaturePage from './pages/PublicSignaturePage';
+import ReportsPage from './pages/ReportsPage';
 
 import LoginForm from './components/LoginForm';
 import loginBackground from './assets/imagem_login.png';
@@ -401,6 +402,8 @@ function App() {
             onCreateNew={openDocumentCreate}
           />
         );
+      case 'reports':
+        return <ReportsPage />;
       case 'finance':
         return <BillingPage />;
       case 'users':

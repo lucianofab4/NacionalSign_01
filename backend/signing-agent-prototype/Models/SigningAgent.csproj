@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.5.0" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.0" />
+    <PackageReference Include="Pkcs11Interop" Version="5.1.1" />
+    <PackageReference Include="itext7" Version="8.0.2" />
+    <PackageReference Include="itext7.bouncy-castle-adapter" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="SigningAgent.UI\**" />
+    <Compile Remove="SigningAgent.Tests\**" />
+    <EmbeddedResource Remove="SigningAgent.UI\**" />
+    <EmbeddedResource Remove="SigningAgent.Tests\**" />
+    <None Remove="SigningAgent.UI\**" />
+    <None Remove="SigningAgent.Tests\**" />
+    <Page Remove="SigningAgent.UI\**" />
+    <Page Remove="SigningAgent.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="SigningAgent.sln" />
+    <None Include="SigningAgent.UI\SigningAgent.UI.csproj" />
+    <None Include="SigningAgent.UI\SigningAgent.UI.slnx" />
+  </ItemGroup>
+
+</Project>
