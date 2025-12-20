@@ -1,4 +1,4 @@
-from . import admin, audit, auth, billing, clients, contacts, customers, dashboard, documents, health, public, public_signatures, tenants, users, workflows
+from . import admin, audit, auth, billing, clients, contacts, customers, dashboard, documents, health, public, public_signatures, reports, tenants, users, workflows
 
 __all__ = [
     "admin",
@@ -13,6 +13,7 @@ __all__ = [
     "health",
     "public",
     "public_signatures",
+    "reports",
     "tenants",
     "users",
     "workflows",

@@ -20,6 +20,7 @@ from app.api.routes import (
     health,
     public,
     public_signatures,
+    reports,
     tenants,
     users,
     workflows,
@@ -157,6 +158,7 @@ def create_app() -> FastAPI:
     application.include_router(documents.router, prefix=settings.api_v1_str)
     application.include_router(workflows.router, prefix=settings.api_v1_str)
     application.include_router(billing.router, prefix=settings.api_v1_str)
+    application.include_router(reports.router, prefix=settings.api_v1_str)
     application.include_router(public_signatures.router, prefix="")
     application.include_router(public.router, prefix="")
 

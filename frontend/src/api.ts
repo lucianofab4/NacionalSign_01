@@ -540,6 +540,60 @@ export interface DocumentSummary {
   status: string;
 }
 
+export interface DocumentReportPartyRow {
+  party_id: string;
+  document_id: string;
+  full_name: string;
+  email?: string | null;
+  role: string;
+  company_name?: string | null;
+  company_tax_id?: string | null;
+  signature_method?: string | null;
+  signature_type?: string | null;
+  status: string;
+  order_index: number;
+  signed_at?: string | null;
+  requires_certificate?: boolean;
+}
+
+export interface DocumentReportRow {
+  document_id: string;
+  name: string;
+  status: string;
+  area_id: string;
+  area_name: string;
+  created_at: string;
+  updated_at: string;
+  created_by_id: string;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  workflow_started_at?: string | null;
+  workflow_completed_at?: string | null;
+  total_parties: number;
+  signed_parties: number;
+  pending_parties: number;
+  signed_digital: number;
+  signed_electronic: number;
+  parties: DocumentReportPartyRow[];
+}
+
+export interface DocumentReportResponse {
+  items: DocumentReportRow[];
+  total: number;
+  status_summary: Record<string, number>;
+}
+
+export interface DocumentReportFilters {
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  areaId?: string;
+  signatureMethod?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface TemplateIndexResponse {
   templates: WorkflowTemplate[];
   areas: { id: string; name: string }[];
@@ -1145,6 +1199,68 @@ export const fetchDocumentVersion = async (documentId: string, versionId: string
   }
   const response = await api.get(`/api/v1/documents/${documentId}/versions/${versionId}`);
   return response.data as DocumentVersion;
+};
+
+export const fetchDocumentReports = async (
+  params: DocumentReportFilters = {},
+): Promise<DocumentReportResponse> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    return {
+      total: 1,
+      status_summary: { completed: 1 },
+      items: [
+        {
+          document_id: mockId(),
+          name: 'Relat�rio Mock',
+          status: 'completed',
+          area_id: mockId(),
+          area_name: 'Geral',
+          created_at: now,
+          updated_at: now,
+          created_by_id: mockId(),
+          created_by_name: 'Usu�rio Mock',
+          created_by_email: 'mock@example.com',
+          workflow_started_at: now,
+          workflow_completed_at: now,
+          total_parties: 1,
+          signed_parties: 1,
+          pending_parties: 0,
+          signed_digital: 0,
+          signed_electronic: 1,
+          parties: [
+            {
+              party_id: mockId(),
+              document_id: mockId(),
+              full_name: 'Parte Mock',
+              email: 'parte@example.com',
+              role: 'representante',
+              status: 'completed',
+              order_index: 1,
+              signature_method: 'electronic',
+              signature_type: 'electronic',
+              signed_at: now,
+              requires_certificate: false,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  const response = await api.get('/api/v1/reports/documents', {
+    params: compactParams({
+      start_date: params.startDate,
+      end_date: params.endDate,
+      status: params.status,
+      area_id: params.areaId,
+      signature_method: params.signatureMethod,
+      search: params.search,
+      limit: params.limit,
+      offset: params.offset,
+    }),
+  });
+  return response.data as DocumentReportResponse;
 };
 
 export const createDocumentField = async (documentId: string, versionId: string, payload: DocumentFieldPayload): Promise<DocumentField> => {
