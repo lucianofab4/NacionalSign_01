@@ -427,11 +427,13 @@ def _build_version_read(
 @router.get("", response_model=List[DocumentRead])
 def list_documents(
     area_id: UUID | None = None,
+    created_by_me: bool = False,
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> List[DocumentRead]:
     document_service, _ = _services(session)
-    return list(document_service.list_documents(current_user.tenant_id, area_id))
+    creator_id = current_user.id if created_by_me else None
+    return list(document_service.list_documents(current_user.tenant_id, area_id, created_by_id=creator_id))
 
 
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)

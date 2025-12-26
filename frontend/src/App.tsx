@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { matchPath, useLocation, useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -14,6 +14,7 @@ import PublicSignaturePage from './pages/PublicSignaturePage';
 import ReportsPage from './pages/ReportsPage';
 
 import LoginForm from './components/LoginForm';
+import NotificationBell from './components/NotificationBell';
 import loginBackground from './assets/imagem_login.png';
 import {
   login,
@@ -353,6 +354,15 @@ function App() {
     changeView('documents');
   };
 
+  const handleNotificationNavigate = useCallback(
+    (documentId: string) => {
+      setDocumentsFocus(null);
+      setView('documents');
+      navigate(`/documentos/${documentId}/gerenciar`);
+    },
+    [navigate],
+  );
+
   const renderContent = () => {
     if (isDocumentCreateRoute) {
       return (
@@ -486,16 +496,19 @@ function App() {
               {profileDisplay && <p>{profileDisplay}</p>}
               {me?.email && <p>Email: {me.email}</p>}
             </div>
-            <div className="flex flex-col gap-2 text-sm font-semibold text-slate-600 lg:flex-row lg:items-center">
+            <div className="flex flex-col gap-3 text-sm font-semibold text-slate-600 lg:flex-row lg:items-center lg:gap-4">
               <nav className="flex flex-wrap gap-3 text-xs uppercase tracking-wide text-slate-500">
                 <span>Documentos</span>
                 <span>Templates</span>
                 <span>Clientes</span>
                 <span>Meu cadastro</span>
               </nav>
-              <button type="button" className="btn btn-primary btn-sm" onClick={handleGoHome}>
-                Home
-              </button>
+              <div className="flex items-center gap-2">
+                <NotificationBell onSelectDocument={handleNotificationNavigate} />
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleGoHome}>
+                  Home
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -617,33 +630,36 @@ function App() {
                     {me?.email ? <span className="hidden sm:inline">Email: {me.email}</span> : null}
                   </div>
                 </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    className={`btn btn-sm ${activeView === 'documents' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => changeView('documents')}
-                  >
-                    Documentos
-                  </button>
-                  <button
-                    className={`btn btn-sm ${activeView === 'templates' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => changeView('templates')}
-                  >
-                    Templates
-                  </button>
-                  {canManageCustomers && (
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <NotificationBell onSelectDocument={handleNotificationNavigate} />
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      className={`btn btn-sm ${isCustomersView ? 'btn-primary' : 'btn-ghost'}`}
-                      onClick={() => changeView('relationships')}
+                      className={`btn btn-sm ${activeView === 'documents' ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => changeView('documents')}
                     >
-                      Clientes
+                      Documentos
                     </button>
-                  )}
-                  <button
-                    className={`btn btn-sm ${activeView === 'settings' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => changeView('settings')}
-                  >
-                    Meu cadastro
-                  </button>
+                    <button
+                      className={`btn btn-sm ${activeView === 'templates' ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => changeView('templates')}
+                    >
+                      Templates
+                    </button>
+                    {canManageCustomers && (
+                      <button
+                        className={`btn btn-sm ${isCustomersView ? 'btn-primary' : 'btn-ghost'}`}
+                        onClick={() => changeView('relationships')}
+                      >
+                        Clientes
+                      </button>
+                    )}
+                    <button
+                      className={`btn btn-sm ${activeView === 'settings' ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => changeView('settings')}
+                    >
+                      Meu cadastro
+                    </button>
+                  </div>
                 </div>
               </div>
 

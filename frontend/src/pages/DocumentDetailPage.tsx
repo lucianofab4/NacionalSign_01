@@ -617,6 +617,12 @@ export default function DocumentDetailPage() {
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase text-slate-500">Hash (SHA-256)</p>
+          <p className="text-sm font-medium text-slate-700 break-all">
+            {version?.sha256 ?? "Disponível após o upload"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase text-slate-500">Carimbo ICP-Brasil</p>
           <p className="text-sm font-medium text-slate-700">
             {version?.icp_authority ? `${version.icp_authority}` : "Não disponível"}

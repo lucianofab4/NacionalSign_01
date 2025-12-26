@@ -12,6 +12,7 @@ from app.models.workflow import (
     WorkflowStep,
     WorkflowTemplate,
 )
+from app.models.notification import UserNotification
 
 __all__ = [
     "AuditLog",
@@ -32,4 +33,5 @@ __all__ = [
     "WorkflowInstance",
     "WorkflowStep",
     "WorkflowTemplate",
+    "UserNotification",
 ]

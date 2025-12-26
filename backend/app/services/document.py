@@ -208,12 +208,28 @@ class DocumentService:
         lines: list[str] = []
         margin = " " * 4
 
+        version_hash: str | None = None
+        if document.current_version_id:
+            current_version = self.session.get(DocumentVersion, document.current_version_id)
+            if current_version and current_version.sha256:
+                version_hash = current_version.sha256
+        if not version_hash:
+            latest_version = (
+                self.session.exec(
+                    select(DocumentVersion)
+                    .where(DocumentVersion.document_id == document.id)
+                    .order_by(DocumentVersion.created_at.desc())
+                ).first()
+            )
+            if latest_version and latest_version.sha256:
+                version_hash = latest_version.sha256
+
         lines.append("+" + "-" * 78 + "+")
         lines.append("|" + " PROTOCOLO DE AÇÕES E ASSINATURAS ".center(78) + "|")
         lines.append("+" + "-" * 78 + "+")
         lines.append("")
         lines.append(f"{margin}Documento.......: {document.name}")
-        lines.append(f"{margin}Referência......: {document.id}")
+        lines.append(f"{margin}Hash............: {version_hash or '-'}")
         if document.created_at:
             lines.append(f"{margin}Criado em.......: {document.created_at:%d/%m/%Y às %H:%M}")
         if document.updated_at:
@@ -580,11 +596,19 @@ class DocumentService:
         text_y = y + (height - font_size) / 2
         overlay.drawCentredString(text_x, text_y + font_size / 2, typed_value)
 
-    def list_documents(self, tenant_id: str | UUID, area_id: str | UUID | None = None) -> Iterable[Document]:
+    def list_documents(
+        self,
+        tenant_id: str | UUID,
+        area_id: str | UUID | None = None,
+        created_by_id: str | UUID | None = None,
+    ) -> Iterable[Document]:
         tenant_uuid = UUID(str(tenant_id))
         statement = select(Document).where(Document.tenant_id == tenant_uuid)
         if area_id:
             statement = statement.where(Document.area_id == UUID(str(area_id)))
+        if created_by_id:
+            statement = statement.where(Document.created_by_id == UUID(str(created_by_id)))
+        statement = statement.order_by(Document.updated_at.desc())
         return self.session.exec(statement).all()
 
     def get_document(self, tenant_id: str | UUID, document_id: str | UUID) -> Document | None:

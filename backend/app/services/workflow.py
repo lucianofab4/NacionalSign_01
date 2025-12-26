@@ -36,6 +36,7 @@ from app.schemas.workflow import (
     WorkflowTemplateCreate,
     WorkflowTemplateUpdate,
 )
+from app.models.notification import UserNotification
 from app.services.notification import NotificationService
 from app.services.report import ReportService
 from app.services.document import DocumentService
@@ -807,6 +808,11 @@ class WorkflowService:
             )
             self.session.add(signature_entry)
             self.session.flush()
+            self._record_party_signed_notification(
+                document=document,
+                party=party,
+                signature=signature_entry,
+            )
 
             evidence_log = {
                 "signature_id": str(signature_entry.id),
@@ -1008,6 +1014,35 @@ class WorkflowService:
             ip=ip,
             user_agent=user_agent,
         )
+
+    def _record_party_signed_notification(
+        self,
+        *,
+        document: Document,
+        party: DocumentParty | None,
+        signature: Signature | None,
+    ) -> None:
+        recipient_id = getattr(document, "created_by_id", None)
+        if not recipient_id:
+            return
+
+        payload = {
+            "document_name": document.name,
+            "signer_name": getattr(party, "full_name", None),
+            "signer_email": getattr(party, "email", None),
+            "signer_role": getattr(party, "role", None),
+            "signed_at": signature.signed_at.isoformat() if signature and signature.signed_at else None,
+            "signature_type": signature.signature_type.value if signature else None,
+        }
+        notification = UserNotification(
+            tenant_id=document.tenant_id,
+            document_id=document.id,
+            recipient_id=recipient_id,
+            party_id=party.id if party else None,
+            event_type="document_party_signed",
+            payload=payload,
+        )
+        self.session.add(notification)
 
     def _advance_workflow(self, workflow: WorkflowInstance, document: Document) -> None:
         steps = self.session.exec(

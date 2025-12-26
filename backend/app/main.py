@@ -18,6 +18,7 @@ from app.api.routes import (
     dashboard,
     documents,
     health,
+    notifications,
     public,
     public_signatures,
     reports,
@@ -156,6 +157,7 @@ def create_app() -> FastAPI:
     application.include_router(customers.router, prefix=settings.api_v1_str)
     application.include_router(dashboard.router, prefix=settings.api_v1_str)
     application.include_router(documents.router, prefix=settings.api_v1_str)
+    application.include_router(notifications.router, prefix=settings.api_v1_str)
     application.include_router(workflows.router, prefix=settings.api_v1_str)
     application.include_router(billing.router, prefix=settings.api_v1_str)
     application.include_router(reports.router, prefix=settings.api_v1_str)

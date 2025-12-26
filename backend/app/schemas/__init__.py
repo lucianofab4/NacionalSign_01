@@ -1,4 +1,4 @@
-from app.schemas import audit, auth, billing, client, common, customer, document, public, tenant, user, workflow
+from app.schemas import audit, auth, billing, client, common, customer, document, notification, public, tenant, user, workflow
 
 __all__ = [
     "audit",
@@ -8,6 +8,7 @@ __all__ = [
     "common",
     "customer",
     "document",
+    "notification",
     "public",
     "tenant",
     "user",

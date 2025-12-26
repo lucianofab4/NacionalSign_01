@@ -113,7 +113,7 @@ const formatPhoneDisplay = (value: string) => {
   return value || "-";
 };
 
-type DocumentListFilter = "all" | "my_pending" | "area_pending";
+type DocumentListFilter = "all" | "my_pending" | "area_pending" | "my_documents";
 type WorkflowTab = "document" | "flow" | "positions" | "dispatch" | "evidence";
 
 const WORKFLOW_TABS: Array<{
@@ -192,6 +192,7 @@ export default function DocumentManagerPage({
   const [activeVersion, setActiveVersion] = useState<DocumentVersion | null>(null);
   const [fields, setFields] = useState<DocumentField[]>([]);
   const [fieldSaving, setFieldSaving] = useState(false);
+  const [skipSignaturePlacement, setSkipSignaturePlacement] = useState(false);
 
   const fieldTypeOptions = useMemo(
     () => [
@@ -287,6 +288,10 @@ export default function DocumentManagerPage({
   );
   const pendingStatuses = useMemo(() => new Set(["in_review", "in_progress"]), []);
 
+  useEffect(() => {
+    setSkipSignaturePlacement(false);
+  }, [selectedDocumentId]);
+
   const resolveApiUrl = useCallback(
     (path?: string | null) => {
       if (!path) return null;
@@ -342,6 +347,10 @@ export default function DocumentManagerPage({
         const matchesArea = effectiveAreaId ? doc.area_id === effectiveAreaId : true;
         return matchesArea && pendingStatuses.has(doc.status);
       }
+       if (documentFilter === "my_documents") {
+         if (!currentUser) return false;
+         return doc.created_by_id === currentUser.id;
+       }
       return true;
     });
   }, [documents, documentFilter, currentUser, effectiveAreaId, pendingStatuses]);
@@ -468,6 +477,8 @@ export default function DocumentManagerPage({
         toast.success("Mostrando documentos pendentes criados por voc.");
       } else if (focusFilter === "area_pending") {
         toast.success("Mostrando pendentes na sua rea.");
+      } else if (focusFilter === "my_documents") {
+        toast.success("Mostrando documentos enviados por voc.");
       }
       onFocusConsumed?.();
     }
@@ -606,6 +617,7 @@ export default function DocumentManagerPage({
     const hasSignatureFields = fields.some(field =>
       ["signature", "signature_image", "typed_name"].includes(field.field_type),
     );
+    const signatureStepSatisfied = skipSignaturePlacement || hasSignatureFields;
     const contactHint = (() => {
       if (contactIssues.length === 0) {
         return "Inclua e-mail e telefone conforme o canal escolhido para cada parte.";
@@ -636,11 +648,11 @@ export default function DocumentManagerPage({
       {
         id: "fields",
         label: "Campos de assinatura posicionados",
-        ok: hasSignatureFields,
-        hint: "Inclua os campos de assinatura e evidencias no documento.",
+        ok: signatureStepSatisfied,
+        hint: "Inclua os campos de assinatura e evidencias no documento ou habilite o envio sem posicionamento na etapa 3.",
       },
     ];
-  }, [selectedDocument, activeVersion, parties, fields, contactIssues]);
+  }, [selectedDocument, activeVersion, parties, fields, contactIssues, skipSignaturePlacement]);
 
   const readinessComplete = readinessItems.length > 0 && readinessItems.every(item => item.ok);
   const readinessPendingItems = useMemo(() => readinessItems.filter(item => !item.ok), [readinessItems]);
@@ -665,7 +677,7 @@ export default function DocumentManagerPage({
   const canDispatch = !dispatchDisabledReason;
   const documentReady = Boolean(selectedDocument && activeVersion);
   const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
-  const signaturePositionsReady = fields.length > 0;
+  const signaturePositionsReady = skipSignaturePlacement || fields.length > 0;
   const dispatchReady = readinessComplete;
 
   useEffect(() => {
@@ -1468,6 +1480,15 @@ export default function DocumentManagerPage({
     scheduleContactLookup(value);
   };
 
+  const handleContactNameBlur = () => {
+    if (contactSearchTimeout.current) {
+      window.clearTimeout(contactSearchTimeout.current);
+      contactSearchTimeout.current = null;
+    }
+    setContactSuggestions([]);
+    setContactSearching(false);
+  };
+
   const applyContactSuggestion = (contact: ContactDirectoryEntry) => {
     setPartyForm(prev => ({
       ...prev,
@@ -1922,6 +1943,7 @@ export default function DocumentManagerPage({
               >
                 <option value="all">Todos</option>
                 <option value="my_pending">Pendentes (meus)</option>
+                <option value="my_documents">Enviados por mim</option>
                 <option value="area_pending">Pendentes na área</option>
               </select>
             </div>
@@ -1989,6 +2011,12 @@ export default function DocumentManagerPage({
                   <div>
                     <dt className="text-xs uppercase text-slate-500">Versão carregada</dt>
                     <dd className="text-sm font-semibold text-slate-700">{activeVersion ? activeVersion.id : "Carregando..."}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase text-slate-500">Hash (SHA-256)</dt>
+                    <dd className="text-sm font-semibold text-slate-700 break-all">
+                      {activeVersion?.sha256 ?? "Disponivel apos o upload"}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase text-slate-500">Última atualização</dt>
@@ -2149,6 +2177,7 @@ export default function DocumentManagerPage({
                     className="mt-1 border rounded px-2 py-1 text-sm w-full"
                     value={partyForm.full_name}
                     onChange={event => handleContactNameChange(event.target.value)}
+                    onBlur={handleContactNameBlur}
                     placeholder="Nome e sobrenome"
                     required
                   />
@@ -2280,56 +2309,6 @@ export default function DocumentManagerPage({
                   <option value="email">Token via email</option>
                 </select>
               </label>
-              <div className="flex flex-col text-xs font-semibold text-slate-500">
-                Campos obrigatórios
-                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.require_cpf}
-                      onChange={event => handlePartyInput("require_cpf", event.target.checked)}
-                    />
-                    CPF
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.require_email}
-                      onChange={event => handlePartyInput("require_email", event.target.checked)}
-                    />
-                    Email
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.require_phone}
-                      onChange={event => handlePartyInput("require_phone", event.target.checked)}
-                    />
-                    Telefone
-                  </label>
-                </div>
-              </div>
-              <div className="flex flex-col text-xs font-semibold text-slate-500">
-                Contatos obrigatórios
-                <div className="mt-2 flex flex-wrap gap-4">
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.require_email}
-                      onChange={event => handlePartyInput("require_email", event.target.checked)}
-                    />
-                    Email
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.require_phone}
-                      onChange={event => handlePartyInput("require_phone", event.target.checked)}
-                    />
-                    Telefone
-                  </label>
-                </div>
-              </div>
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="flex flex-col text-xs font-semibold text-slate-500">
                   Permitir assinatura
@@ -2357,27 +2336,6 @@ export default function DocumentManagerPage({
                         onChange={event => handlePartyInput("allow_signature_draw", event.target.checked)}
                       />
                       Assinatura desenhada
-                    </label>
-                  </div>
-                </div>
-                <div className="flex flex-col text-xs font-semibold text-slate-500">
-                  Contatos obrigatórios
-                  <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
-                    <label className="flex items-center gap-2 text-sm text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={partyForm.require_email}
-                        onChange={event => handlePartyInput("require_email", event.target.checked)}
-                      />
-                      Email
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={partyForm.require_phone}
-                        onChange={event => handlePartyInput("require_phone", event.target.checked)}
-                      />
-                      Telefone
                     </label>
                   </div>
                 </div>
@@ -2586,6 +2544,8 @@ export default function DocumentManagerPage({
             fields={fields}
             onCreateField={handleCreateField}
             isSaving={fieldSaving}
+            skipSignaturePlacement={skipSignaturePlacement}
+            onSkipSignaturePlacementChange={value => setSkipSignaturePlacement(value)}
           />
 
           <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -3119,4 +3079,6 @@ export default function DocumentManagerPage({
     </div>
   );
 }
+
+
 

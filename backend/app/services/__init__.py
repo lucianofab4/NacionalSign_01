@@ -7,6 +7,7 @@ from app.services.reporting import ReportingService
 from app.services.tenant import TenantService
 from app.services.user import UserService
 from app.services.workflow import WorkflowService
+from app.services.user_notifications import UserNotificationService
 
 __all__ = [
     "AuditService",
@@ -18,5 +19,6 @@ __all__ = [
     "TenantService",
     "UserService",
     "WorkflowService",
+    "UserNotificationService",
 ]
 

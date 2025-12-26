@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { isAxiosError } from "axios";
@@ -6,14 +6,16 @@ import { isAxiosError } from "axios";
 import {
   archiveDocument,
   deleteDocument,
+  fetchDocumentSignatures,
   fetchDocuments,
   resendDocumentNotifications,
   type DocumentRecord,
+  type DocumentSignature,
   type Usage,
   type UserMe,
 } from "../api";
 
-export type DocumentListFilter = "all" | "my_pending" | "area_pending";
+export type DocumentListFilter = "all" | "my_pending" | "area_pending" | "my_documents";
 
 type DocumentStatusFilter = "all" | "draft" | "in_review" | "in_progress" | "completed" | "archived";
 
@@ -36,9 +38,9 @@ type PendingAction =
 const statusTabs: Array<{ value: DocumentStatusFilter; label: string }> = [
   { value: "all", label: "Todos" },
   { value: "draft", label: "Rascunhos" },
-  { value: "in_review", label: "Em revisão" },
+  { value: "in_review", label: "Em revisÃ£o" },
   { value: "in_progress", label: "Em andamento" },
-  { value: "completed", label: "Concluídos" },
+  { value: "completed", label: "ConcluÃ­dos" },
   { value: "archived", label: "Arquivados" },
 ];
 
@@ -80,23 +82,23 @@ const statusLabel = (status: string | null | undefined) => {
     case "draft":
       return "Rascunho";
     case "in_review":
-      return "Em revisão";
+      return "Em revisÃ£o";
     case "in_progress":
       return "Em andamento";
     case "completed":
     case "signed":
-      return "Concluído";
+      return "ConcluÃ­do";
     case "archived":
       return "Arquivado";
     default:
-      return status ? status.replace(/_/g, " ") : "—";
+      return status ? status.replace(/_/g, " ") : "â€”";
   }
 };
 
 const getActionTitle = (type: PendingAction["type"]) => {
   switch (type) {
     case "resend":
-      return "Reenviar notificações";
+      return "Reenviar notificaÃ§Ãµes";
     case "archive":
       return "Arquivar documento";
     case "unarchive":
@@ -104,7 +106,7 @@ const getActionTitle = (type: PendingAction["type"]) => {
     case "delete":
       return "Excluir documento";
     default:
-      return "Confirmar ação";
+      return "Confirmar aÃ§Ã£o";
   }
 };
 
@@ -113,11 +115,11 @@ const getActionDescription = (type: PendingAction["type"], name: string) => {
     case "resend":
       return `Vamos reenviar os convites de assinatura para "${name}".`;
     case "archive":
-      return `Arquivar "${name}" remove o documento da lista ativa, mas mantém o histórico para consulta.`;
+      return `Arquivar "${name}" remove o documento da lista ativa, mas mantÃ©m o histÃ³rico para consulta.`;
     case "unarchive":
-      return `Desarquivar "${name}" devolve o documento à listagem ativa.`;
+      return `Desarquivar "${name}" devolve o documento Ã  listagem ativa.`;
     case "delete":
-      return `Excluir "${name}" remove permanentemente o documento e suas versões. Esta ação não pode ser desfeita.`;
+      return `Excluir "${name}" remove permanentemente o documento e suas versÃµes. Esta aÃ§Ã£o nÃ£o pode ser desfeita.`;
     default:
       return "";
   }
@@ -155,6 +157,9 @@ export default function DocumentsPage({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [trackingDocument, setTrackingDocument] = useState<DocumentRecord | null>(null);
+  const [trackingSignatures, setTrackingSignatures] = useState<DocumentSignature[]>([]);
+  const [trackingLoading, setTrackingLoading] = useState(false);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   const documentsQuota = usage?.documents_quota ?? null;
@@ -191,9 +196,9 @@ export default function DocumentsPage({
     if (!focusFilter) return;
     setDocumentFilter(focusFilter);
     if (focusFilter === "my_pending") {
-      toast.success("Mostrando documentos pendentes criados por você.");
+      toast.success("Mostrando documentos pendentes criados por vocÃª.");
     } else if (focusFilter === "area_pending") {
-      toast.success("Mostrando pendentes na sua área.");
+      toast.success("Mostrando pendentes na sua Ã¡rea.");
     }
     onFocusConsumed?.();
   }, [focusFilter, onFocusConsumed]);
@@ -202,6 +207,15 @@ export default function DocumentsPage({
     setSelectedIds(new Set());
   }, [documentFilter, statusFilter]);
 
+  useEffect(() => {
+    if (!trackingDocument) return;
+    const exists = documents.some(doc => doc.id === trackingDocument.id);
+    if (!exists) {
+      setTrackingDocument(null);
+      setTrackingSignatures([]);
+    }
+  }, [documents, trackingDocument]);
+
   const filteredByAudience = useMemo(() => {
     if (documentFilter === "all") return documents;
     if (documentFilter === "my_pending") {
@@ -209,6 +223,10 @@ export default function DocumentsPage({
       return documents.filter(
         doc => doc.created_by_id === currentUser.id && pendingStatuses.has(normalizeStatus(doc.status)),
       );
+    }
+    if (documentFilter === "my_documents") {
+      if (!currentUser) return [];
+      return documents.filter(doc => doc.created_by_id === currentUser.id);
     }
     if (documentFilter === "area_pending") {
       return documents.filter(doc => {
@@ -294,9 +312,33 @@ export default function DocumentsPage({
       navigate(`/documentos/${doc.id}/gerenciar`);
       return;
     }
+    if (value === "track") {
+      void openTrackingPanel(doc);
+      return;
+    }
     if (value === "resend" || value === "archive" || value === "unarchive" || value === "delete") {
       setPendingAction({ type: value, document: doc } as PendingAction);
     }
+  };
+
+  const openTrackingPanel = async (doc: DocumentRecord) => {
+    setTrackingDocument(doc);
+    setTrackingLoading(true);
+    try {
+      const signatures = await fetchDocumentSignatures(doc.id);
+      setTrackingSignatures(signatures);
+    } catch (error) {
+      console.error(error);
+      toast.error("Falha ao carregar andamento das assinaturas.");
+      setTrackingDocument(null);
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
+  const closeTrackingPanel = () => {
+    setTrackingDocument(null);
+    setTrackingSignatures([]);
   };
 
   const runBulkAction = useCallback(
@@ -318,7 +360,7 @@ export default function DocumentsPage({
         await loadDocuments();
       } catch (error) {
         console.error(error);
-        toast.error("Não foi possível concluir a ação para todos os documentos selecionados.");
+        toast.error("NÃ£o foi possÃ­vel concluir a aÃ§Ã£o para todos os documentos selecionados.");
       } finally {
         setActionLoading(false);
       }
@@ -334,7 +376,7 @@ export default function DocumentsPage({
     }
     if (
       !window.confirm(
-        `Arquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles continuarão disponíveis na aba Arquivados.`,
+        `Arquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles continuarÃ£o disponÃ­veis na aba Arquivados.`,
       )
     ) {
       return;
@@ -350,7 +392,7 @@ export default function DocumentsPage({
     }
     if (
       !window.confirm(
-        `Desarquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles voltarão para a lista ativa.`,
+        `Desarquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles voltarÃ£o para a lista ativa.`,
       )
     ) {
       return;
@@ -365,12 +407,12 @@ export default function DocumentsPage({
     }
     if (
       !window.confirm(
-        `Excluir ${selectedCount} documento${selectedCount > 1 ? "s" : ""}? Esta ação removerá permanentemente todas as versões e registros relacionados.`,
+        `Excluir ${selectedCount} documento${selectedCount > 1 ? "s" : ""}? Esta aÃ§Ã£o removerÃ¡ permanentemente todas as versÃµes e registros relacionados.`,
       )
     ) {
       return;
     }
-    await runBulkAction(selectedDocuments, documentId => deleteDocument(documentId), "Documentos excluídos.");
+    await runBulkAction(selectedDocuments, documentId => deleteDocument(documentId), "Documentos excluÃ­dos.");
   };
 
   const handleCloseActionModal = () => {
@@ -388,8 +430,8 @@ export default function DocumentsPage({
           const response = await resendDocumentNotifications(document.id);
           toast.success(
             response.notified > 0
-              ? `Notificações reenviadas para ${response.notified} destinatário(s).`
-              : "Nenhum destinatário pendente para reenviar.",
+              ? `NotificaÃ§Ãµes reenviadas para ${response.notified} destinatÃ¡rio(s).`
+              : "Nenhum destinatÃ¡rio pendente para reenviar.",
           );
           break;
         }
@@ -408,7 +450,7 @@ export default function DocumentsPage({
         case "delete": {
           await deleteDocument(document.id);
           setDocuments(prev => prev.filter(item => item.id !== document.id));
-          toast.success("Documento excluído.");
+          toast.success("Documento excluÃ­do.");
           break;
         }
         default:
@@ -417,7 +459,7 @@ export default function DocumentsPage({
       setPendingAction(null);
     } catch (error) {
       console.error(error);
-      let message = "Falha ao executar a ação.";
+      let message = "Falha ao executar a aÃ§Ã£o.";
       if (isAxiosError(error)) {
         message = (error.response?.data as any)?.detail ?? message;
       } else if (error instanceof Error) {
@@ -434,7 +476,7 @@ export default function DocumentsPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Documentos</h1>
-          <p className="text-sm text-slate-500">Acompanhe todos os envios em um só lugar.</p>
+          <p className="text-sm text-slate-500">Acompanhe todos os envios em um sÃ³ lugar.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadDocuments()}>
@@ -457,7 +499,7 @@ export default function DocumentsPage({
 
       {!areaReady && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Selecione uma área para visualizar os documentos disponíveis.
+          Selecione uma Ã¡rea para visualizar os documentos disponÃ­veis.
         </div>
       )}
 
@@ -486,7 +528,7 @@ export default function DocumentsPage({
             >
               <option value="all">Todos</option>
               <option value="my_pending">Pendentes (meus)</option>
-              <option value="area_pending">Pendentes na área</option>
+              <option value="area_pending">Pendentes na Ã¡rea</option>
             </select>
           </div>
         </div>
@@ -531,8 +573,8 @@ export default function DocumentsPage({
           <div className="py-10 text-center text-sm text-slate-500">
             {documentFilter === "all" && statusFilter === "all"
               ? areaReady
-                ? "Nenhum documento cadastrado nesta área."
-                : "Conecte uma área para visualizar os documentos."
+                ? "Nenhum documento cadastrado nesta Ã¡rea."
+                : "Conecte uma Ã¡rea para visualizar os documentos."
               : "Nenhum documento encontrado para os filtros selecionados."}
           </div>
         ) : (
@@ -552,7 +594,7 @@ export default function DocumentsPage({
                   <th className="px-4 py-3">Documento</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Atualizado</th>
-                  <th className="px-4 py-3">Ações</th>
+                  <th className="px-4 py-3">AÃ§Ãµes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -608,10 +650,13 @@ export default function DocumentsPage({
                           }}
                         >
                           <option value="" disabled>
-                            Ações
+                            AÃ§Ãµes
                           </option>
                           <option value="edit">Editar participantes</option>
-                          {canResend && <option value="resend">Reenviar notificações</option>}
+                          {currentUser?.id === doc.created_by_id && (
+                            <option value="track">Acompanhar assinaturas</option>
+                          )}
+                          {canResend && <option value="resend">Reenviar notificaÃ§Ãµes</option>}
                         </select>
                       </td>
                     </tr>
@@ -619,6 +664,61 @@ export default function DocumentsPage({
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {trackingDocument && (
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 shadow-inner">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Andamento das assinaturas</p>
+                <p className="text-xs text-slate-500">{trackingDocument.name}</p>
+              </div>
+              <button type="button" className="text-xs font-medium text-slate-500 hover:text-slate-800" onClick={closeTrackingPanel}>
+                Fechar
+              </button>
+            </div>
+            {trackingLoading ? (
+              <p className="px-4 py-4 text-sm text-slate-500">Carregando participantes...</p>
+            ) : trackingSignatures.length === 0 ? (
+              <p className="px-4 py-4 text-sm text-slate-500">Nenhum participante cadastrado.</p>
+            ) : (
+              <ul className="divide-y divide-slate-200">
+                {trackingSignatures.map((signature, index) => {
+                  const isSigned = Boolean(signature.signed_at);
+                  const key = signature.party_id ?? `${signature.email ?? "party"}-${index}`;
+                  const personLabel = signature.full_name || signature.email || signature.role || "Participante";
+                  return (
+                    <li key={key} className="flex items-center justify-between px-4 py-3">
+                      <div>
+                        <p className="font-medium text-slate-800">{personLabel}</p>
+                        <p className="text-xs text-slate-500">{signature.role ?? "Sem papel"}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xs font-semibold ${isSigned ? "text-emerald-600" : "text-amber-600"}`}>
+                          {isSigned ? "Assinado" : "Pendente"}
+                        </span>
+                        {signature.signed_at && (
+                          <p className="text-[11px] text-slate-500">{formatDateTime(signature.signed_at)}</p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={closeTrackingPanel}>
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => trackingDocument && navigate(`/documentos/${trackingDocument.id}/gerenciar`)}
+              >
+                Abrir documento
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -656,3 +756,6 @@ export default function DocumentsPage({
     </div>
   );
 }
+
+
+

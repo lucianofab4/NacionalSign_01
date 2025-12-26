@@ -18,6 +18,8 @@ interface PdfFieldDesignerProps {
   fields: DocumentField[];
   onCreateField: (payload: DocumentFieldPayload) => Promise<void> | void;
   isSaving?: boolean;
+  skipSignaturePlacement?: boolean;
+  onSkipSignaturePlacementChange?: (value: boolean) => void;
 }
 
 interface DraftRect {
@@ -34,6 +36,8 @@ const PdfFieldDesigner = ({
   fields,
   onCreateField,
   isSaving = false,
+  skipSignaturePlacement,
+  onSkipSignaturePlacementChange,
 }: PdfFieldDesignerProps) => {
   const [pdfSource, setPdfSource] = useState<string | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
@@ -260,6 +264,23 @@ const PdfFieldDesigner = ({
             ›
           </button>
         </div>
+
+        {typeof skipSignaturePlacement === "boolean" && onSkipSignaturePlacementChange && (
+          <label className="text-xs text-slate-600 flex items-start gap-2 rounded border border-slate-200 px-3 py-2 bg-slate-50">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={skipSignaturePlacement}
+              onChange={event => onSkipSignaturePlacementChange(event.target.checked)}
+            />
+            <span className="leading-tight">
+              <span className="block font-semibold text-slate-800">Dispensar posicionamento</span>
+              <span className="block text-[11px] text-slate-500">
+                Permite avancar sem desenhar campos; os signatarios preenchem apenas o formulario padrao.
+              </span>
+            </span>
+          </label>
+        )}
       </div>
 
       {/* DOCUMENT AREA */}

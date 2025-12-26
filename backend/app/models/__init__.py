@@ -1,4 +1,4 @@
-from app.models import audit, billing, client, contact, customer, document, tenant, user, workflow
+from app.models import audit, billing, client, contact, customer, document, notification, tenant, user, workflow
 
 __all__ = [
     "audit",
@@ -7,6 +7,7 @@ __all__ = [
     "contact",
     "customer",
     "document",
+    "notification",
     "tenant",
     "user",
     "workflow",

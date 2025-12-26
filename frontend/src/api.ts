@@ -470,6 +470,26 @@ export interface DocumentSignature {
   order_index: number | null;
 }
 
+export interface NotificationItem {
+  id: string;
+  document_id: string;
+  event_type: string;
+  created_at: string;
+  updated_at: string | null;
+  read_at?: string | null;
+  document_name?: string | null;
+  signer_name?: string | null;
+  signer_email?: string | null;
+  signer_role?: string | null;
+  signed_at?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  unread_count: number;
+}
+
 export interface DocumentPartyPayload {
   full_name?: string;
   email?: string | null;
@@ -1418,6 +1438,58 @@ export const fetchDocumentSignatures = async (documentId: string): Promise<Docum
   }
   const response = await api.get(`/api/v1/documents/${documentId}/signatures`);
   return response.data as DocumentSignature[];
+};
+
+export const fetchNotificationsList = async (params?: {
+  limit?: number;
+  onlyUnread?: boolean;
+}): Promise<NotificationListResponse> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    return {
+      unread_count: 1,
+      items: [
+        {
+          id: mockId(),
+          document_id: mockId(),
+          event_type: 'document_party_signed',
+          created_at: now,
+          updated_at: now,
+          read_at: null,
+          document_name: 'Contrato Mock',
+          signer_name: 'Maria Teste',
+          signer_email: 'maria@example.com',
+          signer_role: 'signer',
+          signed_at: now,
+          payload: { document_name: 'Contrato Mock', signer_name: 'Maria Teste' },
+        },
+      ],
+    };
+  }
+  const response = await api.get('/api/v1/notifications', {
+    params: compactParams({
+      limit: params?.limit,
+      only_unread: params?.onlyUnread,
+    }),
+  });
+  return response.data as NotificationListResponse;
+};
+
+export const markNotificationAsRead = async (notificationId: string): Promise<NotificationItem> => {
+  if (isMock) {
+    const mockItem = (await fetchNotificationsList()).items[0];
+    return { ...mockItem, read_at: new Date().toISOString() };
+  }
+  const response = await api.post(`/api/v1/notifications/${notificationId}/read`);
+  return response.data as NotificationItem;
+};
+
+export const markAllNotificationsAsRead = async (): Promise<{ updated: number }> => {
+  if (isMock) {
+    return { updated: 1 };
+  }
+  const response = await api.post('/api/v1/notifications/read-all');
+  return response.data as { updated: number };
 };
 
 export const fetchAuditEvents = async (params: { documentId?: string; eventType?: string; page?: number; pageSize?: number }): Promise<AuditEventList> => {

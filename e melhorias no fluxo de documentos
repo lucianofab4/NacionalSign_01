@@ -1,0 +1,131 @@
+warning: in the working copy of 'backend/app/api/routes/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/api/routes/documents.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/db/base.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/models/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/schemas/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/services/workflow.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/DocumentManagerPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/DocumentsPage.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 01801ae..b8917a7 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -1,27 +1,21 @@[m
+[31m-# Pastas e arquivos que não devem ir para o GitHub[m
+[31m-[m
+[31m-# Arquivos gigantes / backups / instaladores[m
+[31m-*.zip[m
+[31m-*.exe[m
+[31m-pgsql/[m
+[31m-pgAdmin*/[m
+[31m-postgresql-*/[m
+[31m-[m
+[31m-# Python[m
+[31m-__pycache__/[m
+[31m-*.py[cod][m
+[31m-*.pyo[m
+[31m-*.pyd[m
+[31m-[m
+[31m-# Node / Frontend[m
+[32m+[m[32m# Node[m
+ node_modules/[m
+ dist/[m
+[31m-build/[m
+ [m
+[31m-# Ambiente[m
+[31m-.env[m
+[31m-.env.local[m
+[32m+[m[32m# .NET[m
+[32m+[m[32mbin/[m
+[32m+[m[32mobj/[m
+[32m+[m
+[32m+[m[32m# Builds[m
+[32m+[m[32m*.exe[m
+[32m+[m[32m*.dll[m
+[32m+[m[32m*.pdb[m
+[32m+[m[32m*.runtimeconfig.json[m
+[32m+[m[32m*.deps.json[m
+[32m+[m
+[32m+[m[32m# Test artifacts[m
+[32m+[m[32mTestResults/[m
+ [m
+[31m-# IDEs / editor[m
+[31m-.vscode/[m
+[31m-.idea/[m
+[32m+[m[32m# OS[m
+[32m+[m[32m.DS_Store[m
+[32m+[m[32mThumbs.db[m
+[1mdiff --git a/backend/app/api/routes/__init__.py b/backend/app/api/routes/__init__.py[m
+[1mindex 2d51fd3..81f6306 100644[m
+[1m--- a/backend/app/api/routes/__init__.py[m
+[1m+++ b/backend/app/api/routes/__init__.py[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-from . import admin, audit, auth, billing, clients, contacts, customers, dashboard, documents, health, public, public_signatures, reports, tenants, users, workflows[m
+[32m+[m[32mfrom . import admin, audit, auth, billing, clients, contacts, customers, dashboard, documents, health, notifications, public, public_signatures, reports, tenants, users, workflows[m
+ [m
+ __all__ = [[m
+     "admin",[m
+[36m@@ -11,6 +11,7 @@[m [m__all__ = [[m
+     "dashboard",[m
+     "documents",[m
+     "health",[m
+[32m+[m[32m    "notifications",[m
+     "public",[m
+     "public_signatures",[m
+     "reports",[m
+[1mdiff --git a/backend/app/api/routes/documents.py b/backend/app/api/routes/documents.py[m
+[1mindex d85a43a..ab1bb4e 100644[m
+[1m--- a/backend/app/api/routes/documents.py[m
+[1m+++ b/backend/app/api/routes/documents.py[m
+[36m@@ -427,11 +427,13 @@[m [mdef _build_version_read([m
+ @router.get("", response_model=List[DocumentRead])[m
+ def list_documents([m
+     area_id: UUID | None = None,[m
+[32m+[m[32m    created_by_me: bool = False,[m
+     session: Session = Depends(get_db),[m
+     current_user: User = Depends(get_current_active_user),[m
+ ) -> List[DocumentRead]:[m
+     document_service, _ = _services(session)[m
+[31m-    return list(document_service.list_documents(current_user.tenant_id, area_id))[m
+[32m+[m[32m    creator_id = current_user.id if created_by_me else None[m
+[32m+[m[32m    return list(document_service.list_documents(current_user.tenant_id, area_id, created_by_id=creator_id))[m
+ [m
+ [m
+ @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)[m
+[1mdiff --git a/backend/app/db/base.py b/backend/app/db/base.py[m
+[1mindex 7ede972..01c8e18 100644[m
+[1m--- a/backend/app/db/base.py[m
+[1m+++ b/backend/app/db/base.py[m
+[36m@@ -12,6 +12,7 @@[m [mfrom app.models.workflow import ([m
+     WorkflowStep,[m
+     WorkflowTemplate,[m
+ )[m
+[32m+[m[32mfrom app.models.notification import UserNotification[m
+ [m
+ __all__ = [[m
+     "AuditLog",[m
+[36m@@ -32,4 +33,5 @@[m [m__all__ = [[m
+     "WorkflowInstance",[m
+     "WorkflowStep",[m
+     "WorkflowTemplate",[m
+[32m+[m[32m    "UserNotification",[m
+ ][m
+[1mdiff --git a/backend/app/main.py b/backend/app/main.py[m
+[1mindex c4336ee..027862c 100644[m
+[1m--- a/backend/app/main.py[m
+[1m+++ b/backend/app/main.py[m
+[36m@@ -18,6 +18,7 @@[m [mfrom app.api.routes import ([m
+     dashboard,[m
+     documents,[m
+     health,[m
+[32m+[m[32m    notifications,[m
+     public,[m
+     public_signatures,[m
+     reports,[m
+[36m@@ -156,6 +157,7 @@[m [mdef create_app() -> FastAPI:[m
+     application.include_router(customers.router, prefix=settings.api_v1_str)[m
+     applicatio
