@@ -1,13 +1,10 @@
-﻿
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { isAxiosError } from "axios";
-
 import StepBuilder, { BuilderStep, PartySuggestion } from "../components/StepBuilder";
 import PdfFieldDesigner from "../components/PdfFieldDesigner";
 import { resolveApiBaseUrl } from "../utils/env";
-
 import {
   api,
   fetchDocuments,
@@ -21,16 +18,20 @@ import {
   deleteDocumentParty,
   fetchAuditEvents,
   dispatchWorkflow,
+  dispatchGroupWorkflow,
   resendDocumentNotifications,
+  resendGroupNotifications,
   fetchSigningCertificates,
   issueSignerShareLink,
   searchContacts,
   listWorkflowTemplates,
   createWorkflowTemplate,
+  fetchDocumentGroup,
   type DocumentRecord,
   type DocumentVersion,
   type DocumentField,
   type DocumentParty,
+  type DocumentGroupDetail,
   type AuditEvent,
   signDocumentVersionWithAgent,
   retrySignDocumentVersionWithAgent,
@@ -42,6 +43,7 @@ import {
   type UserMe,
   type WorkflowTemplate,
   type WorkflowTemplateStep,
+  type WorkflowDispatchPayload,
   type SigningCertificate,
   type DocumentFieldPayload,
   type ContactDirectoryEntry,
@@ -183,9 +185,15 @@ export default function DocumentManagerPage({
 }: DocumentManagerPageProps) {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [documentGroup, setDocumentGroup] = useState<DocumentGroupDetail | null>(null);
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [groupDispatching, setGroupDispatching] = useState(false);
+  const [groupResending, setGroupResending] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [standaloneLoading, setStandaloneLoading] = useState(false);
   const [standaloneError, setStandaloneError] = useState<string | null>(null);
+
   const standaloneView = standalone ?? Boolean(initialDocumentId);
 
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
@@ -221,6 +229,7 @@ export default function DocumentManagerPage({
     }
     return Array.from(new Set(rolesList));
   }, [parties]);
+
   const contactSearchTimeout = useRef<number | null>(null);
   const [contactSuggestions, setContactSuggestions] = useState<ContactDirectoryEntry[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
@@ -267,13 +276,14 @@ export default function DocumentManagerPage({
   const [certificatesError, setCertificatesError] = useState<string | null>(null);
   const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
   const [copyingPartyLinkId, setCopyingPartyLinkId] = useState<string | null>(null);
+
   const auditPanelRef = useRef<HTMLDivElement | null>(null);
 
   const documentsQuota = usage?.documents_quota ?? null;
   const documentsUsed = usage?.documents_used ?? 0;
   const documentLimitReached = documentsQuota !== null && documentsUsed >= documentsQuota;
-  const usingTemplate = Boolean(selectedTemplateId);
 
+  const usingTemplate = Boolean(selectedTemplateId);
   const selectedDocumentId = selectedDocument?.id ?? null;
   const activeVersionId = activeVersion?.id ?? null;
   const apiBaseUrl = resolveApiBaseUrl();
@@ -282,15 +292,58 @@ export default function DocumentManagerPage({
     ((import.meta as any).env?.VITE_PUBLIC_BASE_URL as string | undefined)?.replace(/\/$/, "") ||
     apiBaseUrl ||
     windowOrigin;
+
   const shareUrl = useMemo(
     () => (selectedDocument ? `${publicBaseUrl}/public/verification/${selectedDocument.id}/page` : null),
     [selectedDocument, publicBaseUrl],
   );
+
   const pendingStatuses = useMemo(() => new Set(["in_review", "in_progress"]), []);
+
+  // Detecta lote independente (separate_documents = true)
+  const isSeparateDocumentsGroup = useMemo(() => {
+    return documentGroup?.separate_documents === true;
+  }, [documentGroup]);
 
   useEffect(() => {
     setSkipSignaturePlacement(false);
   }, [selectedDocumentId]);
+
+  useEffect(() => {
+    let active = true;
+    const groupId = selectedDocument?.group_id ?? null;
+    if (!groupId) {
+      setDocumentGroup(null);
+      setGroupError(null);
+      return;
+    }
+    setGroupLoading(true);
+    setGroupError(null);
+    fetchDocumentGroup(groupId)
+      .then(group => {
+        if (!active) return;
+        setDocumentGroup(group);
+      })
+      .catch(error => {
+        if (!active) return;
+        let message = "Falha ao carregar o lote de documentos.";
+        if (isAxiosError(error)) {
+          message = (error.response?.data as any)?.detail ?? message;
+        } else if (error instanceof Error) {
+          message = error.message;
+        }
+        setGroupError(message);
+        toast.error(message);
+      })
+      .finally(() => {
+        if (active) {
+          setGroupLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedDocument?.group_id]);
 
   const resolveApiUrl = useCallback(
     (path?: string | null) => {
@@ -302,6 +355,7 @@ export default function DocumentManagerPage({
     },
     [apiBaseUrl],
   );
+
   const pdfPreviewUrl = useMemo(() => {
     const source = activeVersion?.preview_url || activeVersion?.storage_path;
     if (!source) return null;
@@ -327,6 +381,7 @@ export default function DocumentManagerPage({
     !requiresCertificateInput && (partyForm.require_email || partyForm.notification_channel === "email");
   const mustHavePhone =
     !requiresCertificateInput && (partyForm.require_phone || partyForm.notification_channel === "sms");
+
   const normalizedEmail = normalizeEmail(partyForm.email);
   const normalizedPhone = normalizePhone(partyForm.phone_number);
   const emailHasValue = normalizedEmail.length > 0;
@@ -336,6 +391,7 @@ export default function DocumentManagerPage({
 
   const effectiveAreaId = areaId ?? selectedDocument?.area_id ?? null;
   const areaReady = Boolean(effectiveAreaId);
+
   const visibleDocuments = useMemo(() => {
     if (documentFilter === "all") return documents;
     return documents.filter(doc => {
@@ -347,13 +403,14 @@ export default function DocumentManagerPage({
         const matchesArea = effectiveAreaId ? doc.area_id === effectiveAreaId : true;
         return matchesArea && pendingStatuses.has(doc.status);
       }
-       if (documentFilter === "my_documents") {
-         if (!currentUser) return false;
-         return doc.created_by_id === currentUser.id;
-       }
+      if (documentFilter === "my_documents") {
+        if (!currentUser) return false;
+        return doc.created_by_id === currentUser.id;
+      }
       return true;
     });
   }, [documents, documentFilter, currentUser, effectiveAreaId, pendingStatuses]);
+
   const loadAuditEvents = useCallback(
     async (documentId: string) => {
       if (!documentId) {
@@ -380,6 +437,7 @@ export default function DocumentManagerPage({
     },
     [],
   );
+
   const loadDocuments = useCallback(async () => {
     if (!tenantId || standaloneView) return [] as DocumentRecord[];
     setLoadingDocs(true);
@@ -585,7 +643,6 @@ export default function DocumentManagerPage({
         (party.signature_method ?? "").toLowerCase() === "digital";
       const emailNeeded = !requiresCertificate && (Boolean(party.require_email) || channel === "email");
       const phoneNeeded = !requiresCertificate && (Boolean(party.require_phone) || channel === "sms");
-
       if (emailNeeded) {
         if (!partyEmail) {
           acc.push(displayName + ": e-mail obrigatorio");
@@ -595,7 +652,6 @@ export default function DocumentManagerPage({
       } else if (partyEmail && !isEmailValid(partyEmail)) {
         acc.push(displayName + ": e-mail invalido");
       }
-
       if (phoneNeeded) {
         if (!partyPhoneDigits) {
           acc.push(displayName + ": telefone obrigatorio");
@@ -605,7 +661,6 @@ export default function DocumentManagerPage({
       } else if (partyPhoneDigits && !isPhoneValid(partyPhoneDigits)) {
         acc.push(displayName + ": telefone invalido");
       }
-
       return acc;
     }, []);
   }, [parties]);
@@ -617,7 +672,7 @@ export default function DocumentManagerPage({
     const hasSignatureFields = fields.some(field =>
       ["signature", "signature_image", "typed_name"].includes(field.field_type),
     );
-    const signatureStepSatisfied = skipSignaturePlacement || hasSignatureFields;
+    const signatureStepSatisfied = isSeparateDocumentsGroup || skipSignaturePlacement || hasSignatureFields;
     const contactHint = (() => {
       if (contactIssues.length === 0) {
         return "Inclua e-mail e telefone conforme o canal escolhido para cada parte.";
@@ -649,12 +704,15 @@ export default function DocumentManagerPage({
         id: "fields",
         label: "Campos de assinatura posicionados",
         ok: signatureStepSatisfied,
-        hint: "Inclua os campos de assinatura e evidencias no documento ou habilite o envio sem posicionamento na etapa 3.",
+        hint: isSeparateDocumentsGroup
+          ? "Posicionamento desabilitado em lotes independentes (fluxo unico)."
+          : "Inclua os campos de assinatura e evidencias no documento ou habilite o envio sem posicionamento na etapa 3.",
       },
     ];
-  }, [selectedDocument, activeVersion, parties, fields, contactIssues, skipSignaturePlacement]);
+  }, [selectedDocument, activeVersion, parties, fields, contactIssues, skipSignaturePlacement, isSeparateDocumentsGroup]);
 
   const readinessComplete = readinessItems.length > 0 && readinessItems.every(item => item.ok);
+
   const readinessPendingItems = useMemo(() => readinessItems.filter(item => !item.ok), [readinessItems]);
 
   const dispatchDisabledReason = useMemo(() => {
@@ -675,9 +733,10 @@ export default function DocumentManagerPage({
   }, [documentLimitReached, selectedDocument, readinessComplete, contactIssues]);
 
   const canDispatch = !dispatchDisabledReason;
+
   const documentReady = Boolean(selectedDocument && activeVersion);
   const flowConfigured = usingTemplate ? manualFlowSteps.length > 0 : parties.length > 0;
-  const signaturePositionsReady = skipSignaturePlacement || fields.length > 0;
+  const signaturePositionsReady = isSeparateDocumentsGroup || skipSignaturePlacement || fields.length > 0;
   const dispatchReady = readinessComplete;
 
   useEffect(() => {
@@ -726,7 +785,10 @@ export default function DocumentManagerPage({
     () => ({
       document: { enabled: true, complete: documentReady },
       flow: { enabled: documentReady, complete: flowConfigured },
-      positions: { enabled: documentReady && flowConfigured, complete: signaturePositionsReady },
+      positions: {
+        enabled: documentReady && flowConfigured && !isSeparateDocumentsGroup,
+        complete: signaturePositionsReady,
+      },
       dispatch: {
         enabled: documentReady && flowConfigured && signaturePositionsReady,
         complete: dispatchReady,
@@ -736,7 +798,7 @@ export default function DocumentManagerPage({
         complete: sortedAuditEvents.length > 0 || signHistory.length > 0,
       },
     }),
-    [documentReady, flowConfigured, signaturePositionsReady, dispatchReady, sortedAuditEvents.length, signHistory.length],
+    [documentReady, flowConfigured, signaturePositionsReady, dispatchReady, sortedAuditEvents.length, signHistory.length, isSeparateDocumentsGroup],
   );
 
   const highlightedTabId = useMemo(() => {
@@ -868,7 +930,6 @@ export default function DocumentManagerPage({
     }));
   }, [manualFlowSteps]);
 
-
   const handleStartRoleParty = useCallback(
     (role: string) => {
       setTemplateRoleEditing(role);
@@ -876,7 +937,9 @@ export default function DocumentManagerPage({
       setPartyError(null);
       const normalizedRole = normalizeRoleValue(role);
       const nextOrder =
-        parties.filter(item => normalizeRoleValue(item.role) === normalizedRole).length + 1;
+        normalizedRole?.length
+          ? parties.filter(item => normalizeRoleValue(item.role) === normalizedRole).length + 1
+          : parties.length + 1;
       setPartyForm({
         ...defaultPartyForm(),
         role,
@@ -962,7 +1025,6 @@ export default function DocumentManagerPage({
   const documentHash = activeVersion?.sha256 ?? null;
   const isInitiator = Boolean(currentUser && selectedDocument && currentUser.id === selectedDocument.created_by_id);
   const canResendNotifications = Boolean(selectedDocument && selectedDocument.status !== "draft");
-
   const prettyEventType = (eventType: string) => {
     switch (eventType) {
       case "signature_evidence_captured":
@@ -994,7 +1056,7 @@ export default function DocumentManagerPage({
           .filter(([, enabled]) => Boolean(enabled))
           .map(([key]) => key.replace(/_/g, " "));
         if (enabled.length > 0) {
-        rows.push({ label: "Modalidades", value: enabled.join(" • ") });
+          rows.push({ label: "Modalidades", value: enabled.join(" • ") });
         }
       }
       if (details.image_filename) {
@@ -1068,7 +1130,6 @@ export default function DocumentManagerPage({
         toast.error("Este modelo nao possui etapas configuradas.");
         return false;
       }
-
       const orderedSteps = [...template.steps].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       const builderSteps: BuilderStep[] = orderedSteps.map((step, index) => ({
         id: `${template.id}-${index + 1}`,
@@ -1086,7 +1147,6 @@ export default function DocumentManagerPage({
       if (resetParties) {
         setParties([]);
       }
-
       const firstRole = builderSteps[0]?.role ?? null;
       const normalizedFirstRole = normalizeRoleValue(firstRole);
       const nextOrderForRole =
@@ -1097,11 +1157,9 @@ export default function DocumentManagerPage({
         ...defaultPartyForm(nextOrderForRole),
         role: firstRole ?? "signer",
       };
-
       setTemplateRoleEditing(firstRole);
       setEditingPartyId(null);
       setPartyForm(nextPartyForm);
-
       if (!silent) {
         toast.success("Modelo aplicado ao fluxo manual.");
       }
@@ -1195,14 +1253,18 @@ export default function DocumentManagerPage({
 
   useEffect(() => {
     if (!initialDocumentId) return;
-    if (selectedDocument?.id === initialDocumentId) return;
+    if (selectedDocument?.id === initialDocumentId || selectedDocument?.group_id === initialDocumentId) {
+      return;
+    }
+
     const target = documents.find(doc => doc.id === initialDocumentId);
     if (target) {
       void handleSelectDocument(target);
       return;
     }
+
     let cancelled = false;
-    const fetchSelectedDocument = async () => {
+    const fetchSelected = async () => {
       setStandaloneLoading(true);
       setStandaloneError(null);
       try {
@@ -1212,25 +1274,34 @@ export default function DocumentManagerPage({
         await handleSelectDocument(doc);
       } catch (error) {
         if (cancelled) return;
-        console.error(error);
-        const message =
-          isAxiosError(error)
-            ? (error.response?.data as any)?.detail ?? "No foi possvel carregar o documento selecionado."
-            : error instanceof Error
-            ? error.message
-            : "No foi possvel carregar o documento selecionado.";
-        setStandaloneError(message);
-      } finally {
-        if (!cancelled) {
-          setStandaloneLoading(false);
+        if (isAxiosError(error) && error.response?.status === 404) {
+          try {
+            const group = await fetchDocumentGroup(initialDocumentId);
+            if (cancelled) return;
+            const firstDoc = group.documents?.[0];
+            if (!firstDoc) throw new Error("Grupo vazio.");
+            setDocumentGroup(group);
+            setDocuments(prev => (prev.some(d => d.id === firstDoc.id) ? prev : [...prev, firstDoc]));
+            await handleSelectDocument(firstDoc);
+          } catch (groupErr) {
+            if (cancelled) return;
+            setStandaloneError("ID invalido: nao e documento nem grupo valido.");
+            toast.error("Documento ou lote nao encontrado.");
+          }
+        } else {
+          setStandaloneError("Erro ao carregar documento.");
+          toast.error("Falha ao carregar.");
         }
+      } finally {
+        if (!cancelled) setStandaloneLoading(false);
       }
     };
-    void fetchSelectedDocument();
+
+    void fetchSelected();
     return () => {
       cancelled = true;
     };
-  }, [initialDocumentId, documents, selectedDocument?.id, handleSelectDocument]);
+  }, [initialDocumentId, documents, selectedDocument?.id, selectedDocument?.group_id, handleSelectDocument]);
 
   const handleManualFlowChange = (steps: BuilderStep[]) => {
     setManualFlowDirty(true);
@@ -1319,7 +1390,9 @@ export default function DocumentManagerPage({
   };
 
   const handleOpenFinalPdf = () => downloadSignedAsset(finalDownloadUrl);
+
   const handleOpenVerification = () => openInNewTab(verificationUrl);
+
   const handleCopyShareLink = async () => {
     if (!shareUrl) {
       toast.error("Selecione um documento antes de copiar o link.");
@@ -1363,6 +1436,33 @@ export default function DocumentManagerPage({
     }
   };
 
+  const handleResendGroupNotifications = async () => {
+    if (!documentGroup) {
+      toast.error("Nenhum lote disponível para reenviar.");
+      return;
+    }
+    setGroupResending(true);
+    try {
+      const response = await resendGroupNotifications(documentGroup.id);
+      toast.success(
+        response.notified > 0
+          ? `Notificações do lote reenviadas para ${response.notified} destinatário(s).`
+          : "Nenhum destinatário pendente no lote.",
+      );
+    } catch (error) {
+      console.error(error);
+      let message = "Falha ao reenviar o lote.";
+      if (isAxiosError(error)) {
+        message = (error.response?.data as any)?.detail ?? message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      toast.error(message);
+    } finally {
+      setGroupResending(false);
+    }
+  };
+
   const handleCopySignerLink = async (party: DocumentParty) => {
     setCopyingPartyLinkId(party.id);
     try {
@@ -1385,6 +1485,7 @@ export default function DocumentManagerPage({
       setCopyingPartyLinkId(null);
     }
   };
+
   const handleCloseCertificateModal = () => {
     setCertificateModalOpen(false);
   };
@@ -1432,6 +1533,7 @@ export default function DocumentManagerPage({
       toast.error("Falha ao remover campo.");
     }
   };
+
   const handlePartyInput = <K extends keyof PartyFormState>(key: K, value: PartyFormState[K]) => {
     setPartyForm(prev => {
       if (key === 'notification_channel') {
@@ -1574,7 +1676,6 @@ export default function DocumentManagerPage({
       setPartyError("Informe o papel do representante.");
       return;
     }
-
     if (mustHaveEmail && !emailHasValue) {
       setPartyError("Informe um e-mail para notificacao.");
       return;
@@ -1591,13 +1692,11 @@ export default function DocumentManagerPage({
       setPartyError("Informe um telefone valido (com DDD).");
       return;
     }
-
     const sanitizedPhone = phoneHasValue
       ? (partyForm.phone_number.trim().startsWith("+")
           ? "+" + normalizedPhone
           : normalizedPhone)
       : undefined;
-
     const payload = {
       full_name: partyForm.full_name.trim(),
       email: emailHasValue ? normalizedEmail : undefined,
@@ -1617,7 +1716,6 @@ export default function DocumentManagerPage({
       signature_method: partyForm.signature_method,
       two_factor_type: partyForm.two_factor_type.trim() || undefined,
     };
-
     setPartySaving(true);
     try {
       if (editingPartyId) {
@@ -1755,61 +1853,77 @@ export default function DocumentManagerPage({
     }
   }, [selectedDocumentId, activeVersionId, applySignAgentSuccess, loadLatestAgentAttempt, loadAuditEvents, signActions, signFooterNote, signProtocol, signWatermark]);
 
-
-  const handleDispatchDocument = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const prepareDispatchPayload = useCallback((): WorkflowDispatchPayload | null => {
     if (!selectedDocument) {
       toast.error("Selecione um documento antes de enviar.");
-      return;
+      return null;
     }
     if (!readinessComplete) {
       const message = "Conclua o checklist antes de enviar o documento.";
       setDispatchError(message);
       toast.error(message);
-      return;
+      return null;
     }
     if (["in_progress", "completed"].includes(selectedDocument.status)) {
-      toast.error("O documento j foi enviado para assinatura.");
-      return;
+      toast.error("O documento já foi enviado para assinatura.");
+      return null;
     }
-
     if (documentLimitReached) {
       const message = "Limite de documentos assinados do plano foi atingido. Atualize o plano para enviar novos documentos.";
       setDispatchError(message);
       toast.error(message);
-      return;
+      return null;
     }
-
     if (manualFlowPayload.length > 0 && manualFlowRoleWarnings.length > 0) {
       const message = "Sincronize o fluxo manual com as partes cadastradas antes de enviar.";
       setDispatchError(message);
       toast.error(message);
+      return null;
+    }
+    const payload: WorkflowDispatchPayload = {};
+    if (dispatchDeadline) {
+      const deadline = new Date(dispatchDeadline);
+      if (!Number.isNaN(deadline.getTime())) {
+        payload.deadline_at = deadline.toISOString();
+      }
+    }
+    if (manualFlowPayload.length > 0) {
+      payload.steps = manualFlowPayload.map(step => ({
+        order: step.order,
+        role: step.role,
+        action: step.action,
+        execution: step.execution,
+        deadline_hours: step.deadline_hours ?? null,
+      }));
+    } else if (selectedTemplateId) {
+      payload.template_id = selectedTemplateId;
+    }
+    return payload;
+  }, [
+    selectedDocument,
+    readinessComplete,
+    documentLimitReached,
+    manualFlowPayload,
+    manualFlowRoleWarnings,
+    dispatchDeadline,
+    selectedTemplateId,
+  ]);
+
+  const handleDispatchDocument = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const payload = prepareDispatchPayload();
+    if (!payload || !selectedDocument) {
       return;
     }
-
+    if (documentGroup && documentGroup.documents.length > 1) {
+      await handleDispatchGroup();
+      return;
+    }
     setDispatching(true);
     setDispatchError(null);
     try {
-      const payload: { template_id?: string | null; deadline_at?: string | null; steps?: WorkflowTemplateStep[] } = {};
-      if (dispatchDeadline) {
-        const deadline = new Date(dispatchDeadline);
-        if (!Number.isNaN(deadline.getTime())) {
-          payload.deadline_at = deadline.toISOString();
-        }
-      }
-      if (manualFlowPayload.length > 0) {
-        payload.steps = manualFlowPayload.map(step => ({
-          order: step.order,
-          role: step.role,
-          action: step.action,
-          execution: step.execution,
-          deadline_hours: step.deadline_hours ?? null,
-        }));
-      } else if (selectedTemplateId) {
-        payload.template_id = selectedTemplateId;
-      }
       await dispatchWorkflow(selectedDocument.id, payload);
-      toast.success("Solicitacoes de assinatura enviadas.");
+      toast.success("Solicitações de assinatura enviadas.");
       setSelectedDocument(prev => (prev ? { ...prev, status: "in_progress" } : prev));
       setDocuments(prev =>
         prev.map(doc => (doc.id === selectedDocument.id ? { ...doc, status: "in_progress" } : doc)),
@@ -1818,7 +1932,7 @@ export default function DocumentManagerPage({
       setDispatchDeadline("");
     } catch (error) {
       console.error(error);
-      let message = "Falha ao enviar solicitacoes.";
+      let message = "Falha ao enviar solicitações.";
       if (isAxiosError(error)) {
         message = (error.response?.data as any)?.detail ?? message;
       } else if (error instanceof Error) {
@@ -1828,6 +1942,45 @@ export default function DocumentManagerPage({
       toast.error(message);
     } finally {
       setDispatching(false);
+    }
+  };
+
+  const handleDispatchGroup = async () => {
+    const payload = prepareDispatchPayload();
+    if (!payload || !selectedDocument || !documentGroup) {
+      return;
+    }
+    setGroupDispatching(true);
+    try {
+      const response = await dispatchGroupWorkflow(documentGroup.id, payload);
+      const updatedIds = new Set(response.workflows.map(workflow => workflow.document_id));
+      setDocuments(prev => prev.map(doc => (updatedIds.has(doc.id) ? { ...doc, status: "in_progress" } : doc)));
+      setDocumentGroup(prev =>
+        prev
+          ? {
+              ...prev,
+              documents: prev.documents.map(doc => (updatedIds.has(doc.id) ? { ...doc, status: "in_progress" } : doc)),
+            }
+          : prev,
+      );
+      if (updatedIds.has(selectedDocument.id)) {
+        setSelectedDocument({ ...selectedDocument, status: "in_progress" });
+      }
+      toast.success("Fluxo enviado para todos os documentos do lote.");
+      await loadAuditEvents(selectedDocument.id);
+      setDispatchDeadline("");
+    } catch (error) {
+      console.error(error);
+      let message = "Falha ao enviar o lote.";
+      if (isAxiosError(error)) {
+        message = (error.response?.data as any)?.detail ?? message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+      setDispatchError(message);
+      toast.error(message);
+    } finally {
+      setGroupDispatching(false);
     }
   };
 
@@ -1873,7 +2026,9 @@ export default function DocumentManagerPage({
     if (party.allow_signature_draw) items.push("Desenho");
     return items.length > 0 ? items.join(" • ") : "-";
   };
+
   const wrapperClassName = standaloneView ? "mx-auto flex max-w-6xl flex-col gap-6" : "space-y-6";
+
   const headerContent = standaloneView || focusMode ? (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -1884,7 +2039,7 @@ export default function DocumentManagerPage({
           </h1>
           <p className="text-sm text-slate-500">
             {selectedDocument
-              ? `ltima atualizao ${formatDateTime(selectedDocument.updated_at ?? selectedDocument.created_at)}`
+              ? `Última atualização ${formatDateTime(selectedDocument.updated_at ?? selectedDocument.created_at)}`
               : "Buscando informaes do documento selecionado."}
           </p>
         </div>
@@ -1921,11 +2076,13 @@ export default function DocumentManagerPage({
   );
 
   const focusMode = Boolean(selectedDocument) && !standaloneView;
+
   const limitBanner = documentLimitReached ? (
     <div className="rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700">
       Limite de documentos assinados do plano foi atingido ({documentsUsed}/{documentsQuota} utilizados). Atualize o plano ou contrate um pacote adicional para enviar novos documentos.
     </div>
   ) : null;
+
   const showDocumentList = !standaloneView && !focusMode && documents.length > 0;
 
   const renderDocumentTab = () => (
@@ -1974,7 +2131,16 @@ export default function DocumentManagerPage({
                       className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${isSelected ? "bg-slate-100/70" : ""}`}
                       onClick={() => handleSelectDocument(doc)}
                     >
-                      <td className="px-6 py-3 font-medium text-slate-700">{doc.name}</td>
+                      <td className="px-6 py-3 font-medium text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <span>{doc.name}</span>
+                          {doc.group_id && (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600">
+                              Lote
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-3 capitalize">{doc.status.replace("_", " ")}</td>
                       <td className="px-6 py-3">{new Date(doc.updated_at ?? doc.created_at).toLocaleString("pt-BR")}</td>
                     </tr>
@@ -2033,6 +2199,46 @@ export default function DocumentManagerPage({
                     <dd className="text-sm font-semibold text-slate-700">{fields.length}</dd>
                   </div>
                 </dl>
+                {selectedDocument.group_id && (
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs text-slate-600 space-y-2">
+                    {groupLoading && <p>Carregando documentos do lote...</p>}
+                    {!groupLoading && groupError && <p className="text-rose-600">{groupError}</p>}
+                    {!groupLoading && !groupError && documentGroup && (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">Lote de documentos</p>
+                            <p className="text-[11px] text-slate-500">
+                              {documentGroup.documents.length} documento(s) vinculados ao mesmo fluxo.
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-600">
+                            {documentGroup.title || "Lote sem título"}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {documentGroup.documents.map(doc => {
+                            const isActive = selectedDocument.id === doc.id;
+                            return (
+                              <button
+                                type="button"
+                                key={doc.id}
+                                onClick={() => handleSelectDocument(doc)}
+                                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                                  isActive
+                                    ? "border-indigo-500 bg-indigo-600 text-white"
+                                    : "border-indigo-200 bg-white text-slate-600 hover:border-indigo-300"
+                                }`}
+                              >
+                                {doc.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-slate-500">
                   Avance para a próxima guia para configurar o fluxo de representantes e as posições de assinatura.
                 </p>
@@ -2340,35 +2546,6 @@ export default function DocumentManagerPage({
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col text-xs font-semibold text-slate-500">
-                Campos opcionais
-                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.allow_typed_name}
-                      onChange={event => handlePartyInput("allow_typed_name", event.target.checked)}
-                    />
-                    Nome digitado
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.allow_signature_image}
-                      onChange={event => handlePartyInput("allow_signature_image", event.target.checked)}
-                    />
-                    Upload de imagem
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={partyForm.allow_signature_draw}
-                      onChange={event => handlePartyInput("allow_signature_draw", event.target.checked)}
-                    />
-                    Assinatura desenhada
-                  </label>
-                </div>
-              </div>
               {partyError && <div className="md:col-span-2 text-xs text-rose-600">{partyError}</div>}
               <div className="md:col-span-2 flex justify-between items-center">
                 {editingPartyId && (
@@ -2381,7 +2558,6 @@ export default function DocumentManagerPage({
                 </button>
               </div>
             </form>
-
             {!usingTemplate && (
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 {partyLoading ? (
@@ -2465,7 +2641,6 @@ export default function DocumentManagerPage({
           <div className="px-6 py-8 text-sm text-slate-500">Selecione um documento para configurar as partes e representantes.</div>
         )}
       </div>
-
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-700">Fluxo manual de assinatura</h2>
@@ -2537,17 +2712,22 @@ export default function DocumentManagerPage({
       </div>
       {selectedDocument && activeVersion ? (
         <div className="p-6 space-y-6">
-          <PdfFieldDesigner
-            fileUrl={pdfPreviewUrl}
-            roles={availableRoles}
-            fieldTypes={fieldTypeOptions}
-            fields={fields}
-            onCreateField={handleCreateField}
-            isSaving={fieldSaving}
-            skipSignaturePlacement={skipSignaturePlacement}
-            onSkipSignaturePlacementChange={value => setSkipSignaturePlacement(value)}
-          />
-
+          {isSeparateDocumentsGroup ? (
+            <div className="rounded border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+              Posicionamento de assinaturas desabilitado em lotes independentes (fluxo único compartilhado).
+            </div>
+          ) : (
+            <PdfFieldDesigner
+              fileUrl={pdfPreviewUrl}
+              roles={availableRoles}
+              fieldTypes={fieldTypeOptions}
+              fields={fields}
+              onCreateField={handleCreateField}
+              isSaving={fieldSaving}
+              skipSignaturePlacement={skipSignaturePlacement}
+              onSkipSignaturePlacementChange={value => setSkipSignaturePlacement(value)}
+            />
+          )}
           <div className="border border-slate-200 rounded-lg overflow-hidden">
             <table className="min-w-full text-xs">
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide">
@@ -2632,7 +2812,6 @@ export default function DocumentManagerPage({
           <div className="px-6 py-6 text-sm text-slate-500">Selecione um documento para visualizar o checklist.</div>
         )}
       </div>
-
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-700">Envio aos signatários</h2>
@@ -2694,6 +2873,35 @@ export default function DocumentManagerPage({
                 <p className="text-[11px] text-slate-500">
                   Compartilhe o link público com os participantes ou reenvie as notificações automáticas quando precisar.
                 </p>
+              </div>
+            )}
+            {documentGroup && !groupLoading && !groupError && (
+              <div className="rounded border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-slate-600 space-y-2">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-slate-700">Fluxo em lote</p>
+                  <p className="text-[11px] text-slate-500">
+                    Este documento faz parte de um lote com {documentGroup.documents.length} arquivo(s). Você pode iniciar o fluxo ou reenviar
+                    notificações para todos os documentos ao mesmo tempo.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-xs"
+                    onClick={handleDispatchGroup}
+                    disabled={groupDispatching || dispatching}
+                  >
+                    {groupDispatching ? "Enviando lote..." : "Enviar fluxo do lote"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs"
+                    onClick={handleResendGroupNotifications}
+                    disabled={groupResending}
+                  >
+                    {groupResending ? "Reenviando..." : "Reenviar notificações do lote"}
+                  </button>
+                </div>
               </div>
             )}
             <div className="rounded border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
@@ -2961,7 +3169,6 @@ export default function DocumentManagerPage({
           </div>
         </div>
       )}
-
       {certificateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
@@ -3079,6 +3286,3 @@ export default function DocumentManagerPage({
     </div>
   );
 }
-
-
-

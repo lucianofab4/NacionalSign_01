@@ -2,6 +2,20 @@
 node_modules/
 dist/
 
+# Python / virtualenv
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# App storage artifacts
+backend/_storage/
+backend/log/
+backend/tmp*.*
+backend/_storage/
+
 # .NET
 bin/
 obj/
