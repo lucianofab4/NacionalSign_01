@@ -21,6 +21,7 @@ engine = create_engine(
     echo=settings.debug,
     future=True,
     connect_args=connect_args,
+    pool_pre_ping=True,
 )
 
 
