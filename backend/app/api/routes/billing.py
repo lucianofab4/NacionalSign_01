@@ -2,25 +2,65 @@
 
 from typing import List
 from uuid import UUID
+from datetime import datetime
 
 import hmac
 import hashlib
 import time
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel import Session
 
-from app.api.deps import get_current_active_user, get_db, require_roles
+from app.api.deps import get_current_active_user, get_db, require_roles, require_platform_admin
 from app.models.user import User, UserRole
 from app.models.tenant import Tenant
-from app.schemas.billing import InvoiceRead, PlanRead, SubscriptionCreate, SubscriptionRead, UsageRead, WalletRead, WalletCredit
+from app.schemas.billing import (
+    AdminUsageResponse,
+    InvoiceRead,
+    PlanRead,
+    SubscriptionCreate,
+    SubscriptionRead,
+    TenantUsageAdminRow,
+    UsageAlertRequest,
+    UsageRead,
+    WalletRead,
+    WalletCredit,
+)
 from app.services.billing import BillingService
 from app.core.config import settings
+from app.services.audit import AuditService
+from app.services.notification import NotificationService
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 
 def _service(session: Session) -> BillingService:
     return BillingService(session)
+
+
+def _build_notification_service(session: Session | None = None) -> NotificationService | None:
+    audit_service = AuditService(session) if session else None
+    service = NotificationService(
+        audit_service=audit_service,
+        public_base_url=settings.resolved_public_app_url(),
+        agent_download_url=settings.signing_agent_download_url,
+        session=session,
+    )
+    service.apply_email_settings(settings)
+    if not (service.sendgrid_config or service.email_config):
+        return None
+    return service
+
+
+def _resolve_period(
+    start_date: datetime | None,
+    end_date: datetime | None,
+) -> tuple[datetime, datetime]:
+    now = datetime.utcnow()
+    resolved_end = (end_date or now).replace(microsecond=0)
+    resolved_start = (start_date or resolved_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)).replace(microsecond=0)
+    if resolved_start > resolved_end:
+        resolved_start, resolved_end = resolved_end, resolved_start
+    return resolved_start, resolved_end
 
 
 @router.get("/plans", response_model=List[PlanRead])
@@ -92,6 +132,40 @@ def get_usage(
     return UsageRead.model_validate(data)
 
 
+@router.get("/admin/usage", response_model=AdminUsageResponse)
+def get_usage_overview(
+    start_date: datetime | None = Query(None),
+    end_date: datetime | None = Query(None),
+    search: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    threshold: float | None = Query(None, ge=0.1, le=0.99),
+    include_empty: bool = Query(False),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(require_platform_admin),
+) -> AdminUsageResponse:
+    resolved_start, resolved_end = _resolve_period(start_date, end_date)
+    service = _service(session)
+    overview = service.list_usage_overview(
+        start_date=resolved_start,
+        end_date=resolved_end,
+        search=search,
+        limit=limit,
+        offset=offset,
+        threshold=threshold or 0.8,
+        include_empty=include_empty,
+    )
+    items = [TenantUsageAdminRow(**row) for row in overview["items"]]
+    alerts = [TenantUsageAdminRow(**row) for row in overview["alerts"]]
+    return AdminUsageResponse(
+        total=overview["total"],
+        period_start=overview["period_start"],
+        period_end=overview["period_end"],
+        items=items,
+        alerts=alerts,
+    )
+
+
 @router.post("/seed-plans", response_model=List[PlanRead], status_code=status.HTTP_201_CREATED)
 def seed_default_plans(
     session: Session = Depends(get_db),
@@ -128,6 +202,46 @@ def credit_wallet(
     session.commit()
     session.refresh(tenant)
     return WalletRead(balance_cents=tenant.balance_cents)
+
+
+@router.post("/admin/usage/alerts")
+def trigger_usage_alerts(
+    payload: UsageAlertRequest,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(require_platform_admin),
+) -> dict[str, object]:
+    resolved_start, resolved_end = _resolve_period(payload.start_date, payload.end_date)
+    service = _service(session)
+    overview = service.list_usage_overview(
+        start_date=resolved_start,
+        end_date=resolved_end,
+        threshold=payload.threshold or 0.8,
+    )
+    alerts = overview["alerts"]
+    if payload.only_exceeded:
+        alerts = [row for row in alerts if row.get("limit_state") == "exceeded"]
+    if not alerts:
+        return {"sent": False, "alerts": 0, "detail": "Nenhum cliente atingiu o limite."}
+
+    recipients = payload.emails or settings.customer_admin_emails
+    normalized = sorted({(email or "").strip() for email in recipients if email and email.strip()})
+    if not normalized:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhum e-mail valido informado.")
+
+    notifier = _build_notification_service(session)
+    if not notifier:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Configuracao de e-mail indisponivel para o alerta.",
+        )
+
+    notifier.send_usage_alert_email(
+        recipients=normalized,
+        period_start=resolved_start,
+        period_end=resolved_end,
+        alerts=alerts,
+    )
+    return {"sent": True, "alerts": len(alerts), "recipients": normalized}
 
 
 @router.post("/webhook/stripe", status_code=status.HTTP_200_OK)

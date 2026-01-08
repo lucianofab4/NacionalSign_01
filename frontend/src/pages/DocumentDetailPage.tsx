@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -34,26 +34,20 @@ import { resolveApiBaseUrl } from "../utils/env";
 
 
 
-const formatDateTime = (value: string | null | undefined) => {
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "—";
 
-  if (!value) return "-";
+  // garante que o backend (UTC) seja interpretado corretamente
+  const iso = value.endsWith("Z") ? value : `${value}Z`;
+  const date = new Date(iso);
 
-  try {
+  if (Number.isNaN(date.getTime())) return value;
 
-    return new Intl.DateTimeFormat("pt-BR", {
-
-      dateStyle: "short",
-
-      timeStyle: "short",
-
-    }).format(new Date(value));
-
-  } catch {
-
-    return value;
-
-  }
-
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(date);
 };
 
 
@@ -194,7 +188,7 @@ export default function DocumentDetailPage() {
 
         console.error(err);
 
-        toast.error("Erro ao baixar o arquivo assinado. Verifique sua autenticação.");
+        toast.error("Erro ao baixar o arquivo assinado. Verifique sua autentica��o.");
       }
 
     },
@@ -210,7 +204,7 @@ export default function DocumentDetailPage() {
   useEffect(() => {
 
     if (!id) {
-      setError("Documento não encontrado.");
+      setError("Documento n�o encontrado.");
       setLoading(false);
 
       return;
@@ -254,7 +248,7 @@ export default function DocumentDetailPage() {
         console.error(err);
 
         const message =
-          err instanceof Error ? err.message : "Não foi possível carregar as informações do documento.";
+          err instanceof Error ? err.message : "N�o foi poss�vel carregar as informa��es do documento.";
         setError(message);
 
       } finally {
@@ -328,7 +322,7 @@ export default function DocumentDetailPage() {
         }
 
       } catch (err) {
-        console.debug("Pacote ZIP não disponível, usando fallback.", err);
+        console.debug("Pacote ZIP n�o dispon�vel, usando fallback.", err);
       }
 
 
@@ -337,7 +331,7 @@ export default function DocumentDetailPage() {
       const pdfUrl = artifacts.pdf_url ?? finalDownloadUrl;
 
       if (!pdfUrl) {
-        throw new Error("O arquivo assinado ainda não está disponível.");
+        throw new Error("O arquivo assinado ainda n�o est� dispon�vel.");
       }
 
       const pdfBlob = await fetchAsBlob(pdfUrl);
@@ -432,19 +426,19 @@ export default function DocumentDetailPage() {
 
   const signedAt = formatDateTime(version?.icp_timestamp ?? documentRecord?.updated_at);
 
-  const statusLabel = (documentRecord?.status ?? "-").replace(/_/g, " ");
+  const statusLabel = (documentRecord?.status ?? "—").replace(/_/g, " ");
 
   const originLabel =
 
     version && version.storage_path && !version.storage_path.startsWith("documents/") ? "Importado" : "Sistema";
 
   const companyReference =
-    signatures.find(signature => signature.company_name)?.company_name ?? "Não informado";
+    signatures.find(signature => signature.company_name)?.company_name ?? "N�o informado";
 
 
   if (loading) {
 
-    return <div className="p-8 text-sm text-slate-500">Carregando informações do documento...</div>;
+    return <div className="p-8 text-sm text-slate-500">Carregando informa��es do documento...</div>;
   }
 
 
@@ -465,7 +459,7 @@ export default function DocumentDetailPage() {
 
         >
 
-          ← Voltar
+          ? Voltar
 
         </button>
 
@@ -499,13 +493,13 @@ export default function DocumentDetailPage() {
 
         >
 
-          ← Voltar
+          ? Voltar
 
         </button>
 
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-700">
 
-          Documento não encontrado.
+          Documento n�o encontrado.
 
         </div>
 
@@ -531,7 +525,7 @@ export default function DocumentDetailPage() {
 
       >
 
-        ← Voltar para documentos
+        ? Voltar para documentos
 
       </button>
 
@@ -613,13 +607,13 @@ export default function DocumentDetailPage() {
 
           <p className="text-xs uppercase text-slate-500">Versão atual</p>
           <p className="text-sm font-medium text-slate-700">
-            {version?.original_filename ?? "Não disponível"}
+            {version?.original_filename ?? "N�o dispon�vel"}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase text-slate-500">Hash (SHA-256)</p>
           <p className="text-sm font-medium text-slate-700 break-all">
-            {version?.sha256 ?? "Disponível após o upload"}
+            {version?.sha256 ?? "Dispon�vel ap�s o upload"}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -640,9 +634,9 @@ export default function DocumentDetailPage() {
 
           <div>
 
-            <h2 className="text-lg font-semibold text-slate-700">Informações de assinatura</h2>
+            <h2 className="text-lg font-semibold text-slate-700">Informa��es de assinatura</h2>
             <p className="text-sm text-slate-500">
-              Veja quem assinou, o tipo de assinatura utilizado e o vínculo com a empresa.
+              Veja quem assinou, o tipo de assinatura utilizado e o v�nculo com a empresa.
             </p>
           </div>
 
@@ -698,7 +692,7 @@ export default function DocumentDetailPage() {
 
                     const method = (signature.signature_method ?? "electronic").toLowerCase();
 
-                    const methodLabel = method === "digital" ? "Certificado digital" : "Assinatura eletrônica";
+                    const methodLabel = method === "digital" ? "Certificado digital" : "Assinatura eletr�nica";
                     const typeLabel = signature.signature_type
 
                       ? signature.signature_type.replace(/_/g, " ")
@@ -717,19 +711,19 @@ export default function DocumentDetailPage() {
 
                           </div>
 
-                          <div className="text-xs text-slate-500">{signature.email ?? "-"}</div>
+                          <div className="text-xs text-slate-500">{signature.email ?? "—"}</div>
 
                         </td>
 
                         <td className="px-4 py-3 text-slate-700">
 
-                          {signature.role ? signature.role.replace(/_/g, " ") : "-"}
+                          {signature.role ? signature.role.replace(/_/g, " ") : "—"}
 
                         </td>
 
                         <td className="px-4 py-3 text-slate-700">{typeLabel}</td>
 
-                        <td className="px-4 py-3 text-slate-700">{signature.company_name ?? "-"}</td>
+                        <td className="px-4 py-3 text-slate-700">{signature.company_name ?? "—"}</td>
 
                         <td className="px-4 py-3 text-slate-700">{formatDateTime(signature.signed_at)}</td>
 
@@ -754,5 +748,7 @@ export default function DocumentDetailPage() {
   );
 
 }
+
+
 
 

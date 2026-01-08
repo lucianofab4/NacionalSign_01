@@ -1,11 +1,13 @@
-﻿from __future__ import annotations
-
-from datetime import datetime
+﻿from datetime import datetime
+from typing import List, TYPE_CHECKING
 from uuid import UUID
 
-from sqlmodel import Field
+from sqlmodel import Field, Relationship
 
 from app.models.base import TimestampedModel, UUIDModel
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.models.document import Document
 
 
 class Customer(UUIDModel, TimestampedModel, table=True):
@@ -32,3 +34,4 @@ class Customer(UUIDModel, TimestampedModel, table=True):
     contract_uploaded_at: datetime | None = Field(default=None)
 
     is_active: bool = Field(default=True)
+    documents: List["Document"] = Relationship(back_populates="customer")

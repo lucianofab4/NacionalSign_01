@@ -1,15 +1,17 @@
 ﻿from __future__ import annotations
 
 import json
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_active_user
 from app.models.tenant import Area
+from app.models.user import User
 from app.schemas.workflow import WorkflowStepConfig, WorkflowTemplateCreate, WorkflowTemplateUpdate
 from app.services.document import DocumentService
 from app.services.workflow import WorkflowService
@@ -32,7 +34,18 @@ def list_templates_page(
     tenant_id: UUID,
     area_id: UUID | None = None,
     session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
+    # Restringir ADMIN e AREA_MANAGER apenas à sua área
+    if current_user.profile in ["admin", "area_manager"]:
+        user_area_id = getattr(current_user, "default_area_id", None)
+        if not user_area_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Usuário não possui uma área padrão configurada.",
+            )
+        area_id = user_area_id
+    
     workflow_service = _workflow_service(session)
     document_service = _document_service(session)
 
@@ -169,6 +182,15 @@ def handle_templates_actions(
             workflow_service.update_template(tenant_id, template_id, payload)
             message = "Template ativado." if not template.is_active else "Template desativado."
 
+        elif action == "delete":
+            if not template_id:
+                raise ValueError("Template inválido")
+            template = workflow_service.get_template(template_id)
+            if not template or template.tenant_id != tenant_id:
+                raise ValueError("Template não encontrado")
+            session.delete(template)
+            message = "Template excluído com sucesso."
+
         else:
             raise ValueError("Ação desconhecida")
 
@@ -187,3 +209,58 @@ def handle_templates_actions(
 
     query = "&".join(f"{key}={value}" for key, value in params.items())
     return RedirectResponse(url=f"/admin/templates?{query}", status_code=303)
+
+
+@router.post("/cleanup-deleted-documents", response_model=dict)
+def cleanup_deleted_documents(
+    days: int = 30,
+    dry_run: bool = False,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Limpa documentos que estão na lixeira há mais de X dias.
+    Requer usuário autenticado (endpoint admin).
+    """
+    from app.services.document import DocumentService
+    from app.models.document import Document, DocumentStatus
+    from datetime import timedelta
+    
+    if current_user.profile not in ["owner", "admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
+    
+    document_service = DocumentService(session)
+    
+    if dry_run:
+        # Modo dry-run: apenas contar
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        expired_documents = session.exec(
+            select(Document)
+            .where(Document.status == DocumentStatus.DELETED)
+            .where(Document.deleted_at < cutoff_date)
+        ).all()
+        
+        return {
+            "success": True,
+            "dry_run": True,
+            "days": days,
+            "documents_to_delete": len(expired_documents),
+            "documents": [
+                {
+                    "id": str(doc.id),
+                    "name": doc.name,
+                    "deleted_at": doc.deleted_at.isoformat() if doc.deleted_at else None
+                }
+                for doc in expired_documents[:10]  # Mostrar apenas os primeiros 10
+            ]
+        }
+    else:
+        # Execução real
+        deleted_count = document_service.cleanup_deleted_documents(days=days)
+        return {
+            "success": True,
+            "dry_run": False,
+            "days": days,
+            "deleted_count": deleted_count,
+            "message": f"{deleted_count} documentos excluídos permanentemente"
+        }

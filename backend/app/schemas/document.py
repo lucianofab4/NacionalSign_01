@@ -28,6 +28,7 @@ class DocumentCreate(BaseModel):
     name: str
     area_id: UUID
     signature_flow_mode: str = Field(default="SEQUENTIAL")
+    group_id: UUID | None = None
 
     @field_validator("signature_flow_mode", mode="before")
     @classmethod
@@ -38,12 +39,15 @@ class DocumentCreate(BaseModel):
 class DocumentRead(IDModel, Timestamped):
     tenant_id: UUID
     area_id: UUID
+    customer_id: UUID | None = None
     name: str
     status: DocumentStatus
     last_active_status: DocumentStatus | None = None
     current_version_id: UUID | None
     created_by_id: UUID
     signature_flow_mode: str
+    group_id: UUID | None = None
+    deleted_at: datetime | None = None
 
 
 class DocumentUpdate(BaseModel):
@@ -58,6 +62,36 @@ class DocumentUpdate(BaseModel):
         if value is None:
             return value
         return _normalize_signature_flow_mode(value)
+
+
+class DocumentGroupCreate(BaseModel):
+    title: str | None = None
+    area_id: UUID
+    signature_flow_mode: str = Field(default="SEQUENTIAL")
+    separate_documents: bool = Field(default=False)
+
+    @field_validator("signature_flow_mode", mode="before")
+    @classmethod
+    def validate_flow_mode(cls, value: str | None) -> str:
+        return _normalize_signature_flow_mode(value)
+
+
+class DocumentGroupRead(IDModel, Timestamped):
+    tenant_id: UUID
+    area_id: UUID
+    owner_id: UUID
+    title: str | None = None
+    signature_flow_mode: str
+    separate_documents: bool
+
+
+class DocumentGroupDetail(DocumentGroupRead):
+    documents: List[DocumentRead]
+
+
+class DocumentGroupUploadResponse(BaseModel):
+    group: DocumentGroupRead
+    documents: List[DocumentRead]
 
 
 # -------------------------------------------------------------------------

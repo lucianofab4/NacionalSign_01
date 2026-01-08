@@ -29,7 +29,10 @@ services:
       S3_ACCESS_KEY: minio
       S3_SECRET_KEY: minio123
       S3_BUCKET_DOCUMENTS: nacionalsign-documents
-  ALLOWED_ORIGINS: '["http://localhost:5173"]'
+      ALLOWED_ORIGINS: '["http://localhost:5173"]'
+      DEBUG: "true"
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     depends_on:

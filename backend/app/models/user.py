@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship
 
 from app.models.base import TimestampedModel, UUIDModel
@@ -20,12 +21,16 @@ class UserRole(str, Enum):
 
 class User(UUIDModel, TimestampedModel, table=True):
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
+        UniqueConstraint("tenant_id", "cpf", name="uq_users_tenant_cpf"),
+    )
 
     tenant_id: UUID = Field(foreign_key="tenants.id", index=True)
     default_area_id: UUID | None = Field(default=None, foreign_key="areas.id")
 
-    email: str = Field(index=True, unique=True)
-    cpf: str = Field(index=True)
+    email: str = Field(index=True)
+    cpf: str | None = Field(default=None, index=True)
     full_name: str
     phone_number: str | None = Field(default=None, max_length=32)
 

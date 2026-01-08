@@ -2,7 +2,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { isAxiosError } from "axios";
 
-import { createDocumentRecord, uploadDocumentVersion } from "../api";
+import { api, createDocumentRecord, uploadDocumentVersion, type DocumentGroupUploadResponse } from "../api";
 
 interface DocumentCreatePageProps {
   tenantId: string;
@@ -14,7 +14,9 @@ export default function DocumentCreatePage({ areaId, onFinished }: DocumentCreat
   const areaReady = Boolean(areaId);
   const [name, setName] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [separateDocuments, setSeparateDocuments] = useState(false);
   const [saving, setSaving] = useState(false);
+  const MAX_UNIFIED_FILES = 10;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -33,8 +35,29 @@ export default function DocumentCreatePage({ areaId, onFinished }: DocumentCreat
 
     setSaving(true);
     try {
+      if (separateDocuments) {
+        const form = new FormData();
+        form.append("title", name.trim());
+        form.append("area_id", areaId as string);
+        form.append("separate_documents", "true");
+        files.forEach(file => form.append("files", file));
+        const response = await api.post("/api/v1/documents/groups", form);
+        const responseData = response.data as DocumentGroupUploadResponse;
+        toast.success("Grupo de documentos criado. Configure o fluxo em seguida.");
+        setName("");
+        setFiles([]);
+        setSeparateDocuments(false);
+        const groupId = responseData?.group_id ?? responseData?.group?.id;
+        onFinished(groupId || undefined);
+        return;
+      }
+
       const doc = await createDocumentRecord({ name: name.trim(), area_id: areaId as string });
-      await uploadDocumentVersion(doc.id, files);
+      if (files.length > 0) {
+        await uploadDocumentVersion(doc.id, files);
+      } else {
+        throw new Error("Nenhum arquivo selecionado.");
+      }
       toast.success("Documento criado. Configure o fluxo a seguir.");
       setName("");
       setFiles([]);
@@ -88,7 +111,19 @@ export default function DocumentCreatePage({ areaId, onFinished }: DocumentCreat
             multiple
             onChange={event => {
               const selected = Array.from(event.target.files ?? []);
-              setFiles(selected);
+              if (selected.length === 0) {
+                return;
+              }
+              setFiles(prev => {
+                const combined = [...prev, ...selected];
+                if (!separateDocuments && combined.length > MAX_UNIFIED_FILES) {
+                  toast.error(`Máximo ${MAX_UNIFIED_FILES} arquivos para unificação.`);
+                  return prev;
+                }
+                return combined;
+              });
+              // Libera o input para permitir selecionar o mesmo arquivo novamente depois.
+              event.target.value = "";
             }}
             accept=".pdf,.docx,.png,.jpg,.jpeg,.gif,.webp,.tiff"
           />
@@ -98,10 +133,33 @@ export default function DocumentCreatePage({ areaId, onFinished }: DocumentCreat
             </span>
           )}
         </label>
+        <label className="flex items-center gap-3 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={separateDocuments}
+            onChange={event => {
+              const nextValue = event.target.checked;
+              if (!nextValue && files.length > MAX_UNIFIED_FILES) {
+                toast.error(`Máximo ${MAX_UNIFIED_FILES} arquivos para unificação.`);
+                setFiles(prev => prev.slice(0, MAX_UNIFIED_FILES));
+              }
+              setSeparateDocuments(nextValue);
+            }}
+          />
+          <div>
+            <p className="font-medium text-slate-700">Criar documentos independentes (lote)</p>
+            <p className="text-xs text-slate-500">
+              Cada arquivo vira um documento separado, com protocolo e assinatura individuais. Todos ficam vinculados
+              ao mesmo fluxo.
+            </p>
+          </div>
+        </label>
         <div className="flex items-center justify-between">
           <small className="text-slate-500">
-            Arquivos DOCX e imagens serão convertidos automaticamente para PDF padrão. Você pode enviar vários
-            arquivos; eles serão unificados em um único PDF antes da assinatura.
+            {separateDocuments
+              ? "Arquivos DOCX e imagens serão convertidos em PDFs individuais. Cada documento terá protocolo próprio, mas compartilhará o mesmo fluxo."
+              : "Arquivos DOCX e imagens serão convertidos automaticamente para PDF padrão. Você pode enviar vários arquivos; eles serão unificados em um único PDF antes da assinatura."}
           </small>
           <button type="submit" className="btn btn-primary" disabled={saving || files.length === 0 || !areaReady}>
             {saving ? "Processando..." : "Enviar"}

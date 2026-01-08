@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.workflow import SignatureRequestStatus, SignatureType, WorkflowStatus
 from app.schemas.common import IDModel, Timestamped
+from app.schemas.document import DocumentGroupRead
 
 
 class WorkflowStepConfig(BaseModel):
@@ -14,11 +15,67 @@ class WorkflowStepConfig(BaseModel):
     action: str = Field(default="sign", min_length=1, max_length=32)
     execution: Literal["sequential", "parallel"] = "sequential"
     deadline_hours: int | None = Field(default=None, ge=1, le=24 * 90)
+    signature_method: Literal["electronic", "digital"] = "electronic"
+    representative_name: str | None = None
+    representative_cpf: str | None = None
+    company_name: str | None = None
+    company_tax_id: str | None = None
+    representative_email: str | None = None
+    representative_phone: str | None = None
 
     @field_validator("role")
     @classmethod
     def normalize_role(cls, value: str) -> str:
         return value.strip().lower()
+
+    @field_validator("signature_method")
+    @classmethod
+    def normalize_signature_method(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        return "digital" if normalized == "digital" else "electronic"
+
+    @field_validator("representative_name", "company_name")
+    @classmethod
+    def normalize_text_field(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
+
+    @field_validator("representative_cpf")
+    @classmethod
+    def normalize_rep_cpf(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        digits = "".join(filter(str.isdigit, value))
+        return digits or None
+
+    @field_validator("company_tax_id")
+    @classmethod
+    def normalize_company_tax_id(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        digits = "".join(filter(str.isdigit, value))
+        return digits or None
+
+    @field_validator("representative_email")
+    @classmethod
+    def normalize_rep_email(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        cleaned = value.strip().lower()
+        return cleaned or None
+
+    @field_validator("representative_phone")
+    @classmethod
+    def normalize_rep_phone(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        raw = value.strip()
+        digits = "".join(filter(str.isdigit, raw))
+        if not digits:
+            return None
+        return f"+{digits}" if raw.startswith("+") else digits
 
 
 class WorkflowTemplateCreate(BaseModel):
@@ -57,10 +114,12 @@ class WorkflowDispatch(BaseModel):
 
 class WorkflowRead(IDModel, Timestamped):
     document_id: UUID
+    group_id: UUID | None = None
     template_id: UUID | None
     status: WorkflowStatus
     started_at: datetime | None
     completed_at: datetime | None
+    is_group_workflow: bool = False
 
 
 class WorkflowStepRead(IDModel, Timestamped):
@@ -121,6 +180,8 @@ class SignatureRequestRead(IDModel, Timestamped):
     workflow_step_id: UUID
     status: SignatureRequestStatus
     token_channel: str | None
+    document_id: UUID
+    group_id: UUID | None = None
 
 
 class SignatureRead(IDModel, Timestamped):
@@ -142,3 +203,13 @@ class SignatureRead(IDModel, Timestamped):
     evidence_image_size: int | None
     evidence_image_sha256: str | None
     evidence_image_filename: str | None
+
+
+class WorkflowGroupDispatchResponse(BaseModel):
+    group: DocumentGroupRead
+    workflows: List[WorkflowRead]
+
+
+class WorkflowGroupResendResponse(BaseModel):
+    group: DocumentGroupRead
+    notified: int

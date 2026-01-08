@@ -10,8 +10,6 @@ from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserUpdate
 from app.utils.email_validation import normalize_deliverable_email
 from app.utils.security import get_password_hash, generate_secure_password
-from app.models.billing import Subscription, Plan
-from sqlmodel import func
 
 
 class UserService:
@@ -30,31 +28,23 @@ class UserService:
         tenant_uuid = UUID(str(tenant_id))
         area_id = self._validate_area(payload.default_area_id, tenant_uuid)
 
-        normalized_email = normalize_deliverable_email(payload.email)
+        try:
+            normalized_email = normalize_deliverable_email(payload.email)
+        except ValueError as exc:
+            raise ValueError("E-mail inválido") from exc
         normalized_cpf = payload.cpf.strip() if payload.cpf else ""
-
-        subscription = self.session.exec(
-            select(Subscription).where(Subscription.tenant_id == tenant_uuid)
-        ).first()
-        if subscription:
-            plan = self.session.get(Plan, subscription.plan_id)
-            if plan and plan.user_quota is not None and plan.user_quota > 0:
-                total_users = self.session.exec(
-                    select(func.count()).select_from(User).where(User.tenant_id == tenant_uuid)
-                ).one()
-                current_users = int(total_users or 0)
-                if current_users >= plan.user_quota:
-                    raise ValueError("User quota exceeded for current plan")
+        if not normalized_cpf:
+            normalized_cpf = None
 
         existing_email = self.session.exec(
-            select(User).where(User.email == normalized_email)
+            select(User).where(User.email == normalized_email).where(User.tenant_id == tenant_uuid)
         ).first()
         if existing_email:
             raise ValueError("Já existe um usuário com este e-mail.")
 
         if normalized_cpf:
             existing_cpf = self.session.exec(
-                select(User).where(User.cpf == normalized_cpf)
+                select(User).where(User.cpf == normalized_cpf).where(User.tenant_id == tenant_uuid)
             ).first()
             if existing_cpf:
                 raise ValueError("Já existe um usuário com este CPF.")
@@ -62,7 +52,7 @@ class UserService:
         user = User(
             tenant_id=tenant_uuid,
             email=normalized_email,
-            cpf=normalized_cpf or "",
+            cpf=normalized_cpf,
             full_name=payload.full_name,
             phone_number=payload.phone_number.strip() if payload.phone_number else None,
             password_hash=get_password_hash(payload.password),

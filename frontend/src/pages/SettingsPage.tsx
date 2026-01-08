@@ -2,19 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import MySettingsPage from './MySettingsPage';
 import SettingsAreasTab from '../components/settings/SettingsAreasTab';
-import { fetchTemplates, type TemplateIndexResponse, type UserMe, type WorkflowTemplate } from '../api';
+import {
+  fetchMyCompanyProfile,
+  fetchTemplates,
+  type CustomerSummary,
+  type TemplateIndexResponse,
+  type UserMe,
+  type WorkflowTemplate,
+} from '../api';
 
-type SettingsTabKey = 'account' | 'areas' | 'templates';
+type SettingsTabKey = 'account' | 'areas' | 'templates' | 'company';
 
 const tabItems: Array<{ key: SettingsTabKey; label: string; helper: string }> = [
   { key: 'account', label: 'Minha conta', helper: 'Dados pessoais e preferências' },
+  { key: 'company', label: 'Minha empresa', helper: 'Razão social, nome fantasia e CNPJ' },
   { key: 'areas', label: 'Áreas da empresa', helper: 'Estruture times e permissões' },
   { key: 'templates', label: 'Templates por área', helper: 'Conecte fluxos às áreas' },
 ];
 
 const SETTINGS_TAB_PARAM = 'settingsTab';
 const SETTINGS_TAB_STORAGE_KEY = 'nacionalsign.settings.activeTab';
-const allowedTabs: SettingsTabKey[] = ['account', 'areas', 'templates'];
+const allowedTabs: SettingsTabKey[] = ['account', 'company', 'areas', 'templates'];
 const AREALESS_KEY = '__without-area__';
 
 const isSettingsTabKey = (value: string | null): value is SettingsTabKey =>
@@ -83,7 +91,7 @@ const TemplatesTabContent = ({
   const formatDateTime = (value?: string | null) => {
     if (!value) return 'sem registro';
     try {
-      return new Date(value).toLocaleString('pt-BR');
+      return new Date(value).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     } catch {
       return value;
     }
@@ -239,6 +247,86 @@ const TemplatesTabContent = ({
   );
 };
 
+const formatCnpj = (raw: string | null | undefined): string => {
+  if (!raw) return '—';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length !== 14) return raw;
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+};
+
+const CompanyProfileTab = () => {
+  const [company, setCompany] = useState<CustomerSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadCompany = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchMyCompanyProfile();
+      setCompany(data);
+    } catch (err) {
+      console.error(err);
+      setError('Não foi possível carregar as informações da empresa.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCompany();
+  }, [loadCompany]);
+
+  const infoEntries = [
+    { label: 'Razão social', value: company?.corporate_name ?? '—' },
+    { label: 'Nome fantasia', value: company?.trade_name ?? '—' },
+    { label: 'CNPJ', value: formatCnpj(company?.cnpj ?? null) },
+    { label: 'Responsável', value: company?.responsible_name ?? '—' },
+    { label: 'E-mail do responsável', value: company?.responsible_email ?? '—' },
+    { label: 'Telefone do responsável', value: company?.responsible_phone ?? '—' },
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold text-slate-800">Minha empresa</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Dados oficiais da empresa vinculada ao seu ambiente. Mantenha razão social, nome fantasia e contatos sempre
+          atualizados para evitar divergências em contratos e notificações.
+        </p>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-slate-500">Carregando informações...</p>
+      ) : error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <p>{error}</p>
+          <button
+            type="button"
+            className="mt-3 rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-white"
+            onClick={() => void loadCompany()}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      ) : company ? (
+        <dl className="grid gap-4 md:grid-cols-2">
+          {infoEntries.map(entry => (
+            <div key={entry.label} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">{entry.label}</dt>
+              <dd className="mt-1 text-base font-medium text-slate-800">{entry.value || '—'}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          Não encontramos um cadastro de empresa vinculado a este tenant. Solicite ao suporte a ativação do seu cliente.
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function SettingsPage({ currentUser, tenantId, onUserUpdated, onOpenTemplates }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState<SettingsTabKey>(() => resolveInitialTab());
   const [templatesData, setTemplatesData] = useState<TemplateIndexResponse | null>(null);
@@ -338,6 +426,8 @@ export default function SettingsPage({ currentUser, tenantId, onUserUpdated, onO
 
   const renderActiveTab = () => {
     switch (activeTab) {
+      case 'company':
+        return <CompanyProfileTab />;
       case 'areas':
         return <SettingsAreasTab />;
       case 'templates':

@@ -79,6 +79,21 @@ export default function ActivateCustomerPage() {
       toast.error('Você precisa aceitar os termos para continuar.');
       return;
     }
+    if (!form.full_name.trim()) {
+      toast.error('Informe o nome completo do responsável.');
+      return;
+    }
+    const emailValue = form.email.trim();
+    if (!emailValue) {
+      toast.error('Informe um e-mail válido para o responsável.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailValue)) {
+      toast.error('Informe um e-mail válido para o responsável.');
+      return;
+    }
+    const normalizedName = form.full_name.trim();
     if (!form.password || form.password.length < 8) {
       toast.error('Informe uma senha com pelo menos 8 caracteres.');
       return;
@@ -90,8 +105,8 @@ export default function ActivateCustomerPage() {
     setSubmitting(true);
     try {
       const response = await completeCustomerActivation(token, {
-        admin_full_name: form.full_name || undefined,
-        admin_email: form.email || undefined,
+        admin_full_name: normalizedName || undefined,
+        admin_email: emailValue || undefined,
         password: form.password,
         confirm_password: form.confirm_password,
       });
@@ -167,7 +182,6 @@ export default function ActivateCustomerPage() {
                 className="mt-1 rounded border border-slate-300 px-3 py-2"
                 value={form.full_name}
                 onChange={event => handleInput('full_name', event.target.value)}
-                required
               />
             </label>
 
@@ -178,7 +192,6 @@ export default function ActivateCustomerPage() {
                 className="mt-1 rounded border border-slate-300 px-3 py-2"
                 value={form.email}
                 onChange={event => handleInput('email', event.target.value)}
-                required
               />
             </label>
 
@@ -190,7 +203,6 @@ export default function ActivateCustomerPage() {
                   className="mt-1 rounded border border-slate-300 px-3 py-2"
                   value={form.password}
                   onChange={event => handleInput('password', event.target.value)}
-                  required
                 />
               </label>
               <label className="flex flex-col text-sm font-medium text-slate-600">
@@ -200,7 +212,6 @@ export default function ActivateCustomerPage() {
                   className="mt-1 rounded border border-slate-300 px-3 py-2"
                   value={form.confirm_password}
                   onChange={event => handleInput('confirm_password', event.target.value)}
-                  required
                 />
               </label>
             </div>

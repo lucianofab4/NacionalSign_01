@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlmodel import Field, Relationship
 
 from app.models.base import TimestampedModel, UUIDModel
+from app.models.customer import Customer
 from app.models.tenant import Area, Tenant
 from app.models.user import User
 
@@ -17,6 +18,23 @@ class DocumentStatus(str, Enum):
     COMPLETED = "completed"
     REJECTED = "rejected"
     ARCHIVED = "archived"
+    DELETED = "deleted"
+
+
+class DocumentGroup(UUIDModel, TimestampedModel, table=True):
+    __tablename__ = "document_groups"
+
+    tenant_id: UUID = Field(foreign_key="tenants.id", index=True)
+    area_id: UUID = Field(foreign_key="areas.id", index=True)
+    owner_id: UUID = Field(foreign_key="users.id", index=True)
+    title: str | None = Field(default=None, max_length=255)
+    signature_flow_mode: str = Field(default="SEQUENTIAL", max_length=32)
+    separate_documents: bool = Field(default=False)
+
+    tenant: Tenant = Relationship()
+    area: Area = Relationship()
+    owner: User = Relationship()
+    documents: List["Document"] = Relationship(back_populates="group")
 
 
 class Document(UUIDModel, TimestampedModel, table=True):
@@ -24,17 +42,22 @@ class Document(UUIDModel, TimestampedModel, table=True):
 
     tenant_id: UUID = Field(foreign_key="tenants.id", index=True)
     area_id: UUID = Field(foreign_key="areas.id", index=True)
+    customer_id: UUID | None = Field(default=None, foreign_key="customers.id", index=True)
     name: str
     status: DocumentStatus = Field(default=DocumentStatus.DRAFT)
     last_active_status: DocumentStatus | None = Field(default=None)
     current_version_id: UUID | None = Field(default=None, foreign_key="document_versions.id")
     signature_flow_mode: str = Field(default="SEQUENTIAL", max_length=32)
+    group_id: UUID | None = Field(default=None, foreign_key="document_groups.id", index=True)
+    deleted_at: datetime | None = Field(default=None, index=True)
 
     created_by_id: UUID = Field(foreign_key="users.id")
 
     tenant: Tenant = Relationship()
+    customer: Optional[Customer] = Relationship(back_populates="documents")
     area: Area = Relationship(back_populates="documents")
     created_by: User = Relationship()
+    group: Optional[DocumentGroup] = Relationship(back_populates="documents")
     versions: List["DocumentVersion"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"foreign_keys": "DocumentVersion.document_id"},

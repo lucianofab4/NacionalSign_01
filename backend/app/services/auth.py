@@ -67,13 +67,21 @@ class AuthService:
         return self._build_tokens(admin_user, active_tenant=tenant)
 
     def authenticate(self, payload: LoginRequest) -> Token:
-        statement = select(User).where(User.email == payload.username)
-        user = self.session.exec(statement).first()
+        statement = select(User).where(User.email == payload.username).order_by(User.created_at.desc())
+        candidates = self.session.exec(statement).all()
 
-        if not user or not user.is_active:
+        if not candidates:
             raise ValueError("Invalid credentials")
 
-        if not verify_password(payload.password, user.password_hash):
+        user = None
+        for candidate in candidates:
+            if not candidate.is_active:
+                continue
+            if verify_password(payload.password, candidate.password_hash):
+                user = candidate
+                break
+
+        if not user:
             raise ValueError("Invalid credentials")
 
         if user.two_factor_enabled:

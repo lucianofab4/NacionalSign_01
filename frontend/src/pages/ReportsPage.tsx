@@ -24,6 +24,20 @@ const signatureLabels: Record<string, string> = {
   digital: 'Digital (certificado)',
 };
 
+const representativeStatusLabels: Record<string, string> = {
+  pending: 'Pendente',
+  signed: 'Assinado',
+  refused: 'Recusado',
+  delegated: 'Delegado',
+  expired: 'Expirado',
+};
+
+const getRepresentativeStatus = (party: DocumentReportRow['parties'][number]) => {
+  if (party.signed_at) return 'Assinado';
+  const normalized = (party.status || '').toLowerCase();
+  return representativeStatusLabels[normalized] ?? party.status ?? 'Pendente';
+};
+
 const defaultFilters = {
   startDate: '',
   endDate: '',
@@ -37,7 +51,7 @@ const formatDateTime = (value?: string | null) => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 };
 
 const formatDate = (value?: string | null) => {
@@ -116,7 +130,7 @@ const buildCsv = (items: DocumentReportRow[]) => {
         party.company_name ?? '—',
         configuredMethod,
         executedMethod,
-        party.status,
+        getRepresentativeStatus(party),
         formatDateTime(party.signed_at),
       ]);
     });

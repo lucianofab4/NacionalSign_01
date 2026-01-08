@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Alertas de uso</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        color: #1f2937;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 12px;
+      }
+      th, td {
+        border: 1px solid #e5e7eb;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #f3f4f6;
+      }
+      .state-ok { color: #059669; }
+      .state-near_limit { color: #d97706; }
+      .state-exceeded { color: #dc2626; }
+    </style>
+  </head>
+  <body>
+    <p>Ola! Segue o resumo de uso dos clientes NacionalSign.</p>
+    <p>Periodo analisado: <strong>{{ period_start.strftime('%d/%m/%Y') }}</strong> ate <strong>{{ period_end.strftime('%d/%m/%Y') }}</strong>.</p>
+    {% if alerts %}
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Plano</th>
+          <th>Documentos usados</th>
+          <th>Assinados</th>
+          <th>Limite</th>
+          <th>Status</th>
+          <th>Observacao</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in alerts %}
+        <tr>
+          <td>{{ row.tenant_name }}</td>
+          <td>{{ row.plan_name or '—' }}</td>
+          <td>{{ row.documents_used }}</td>
+          <td>{{ row.documents_signed or 0 }}</td>
+          <td>{{ row.documents_quota or '∞' }}</td>
+          <td class="state-{{ row.limit_state }}">{{ row.limit_state }}</td>
+          <td>{{ row.message or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>Nenhum cliente atingiu o limite neste periodo.</p>
+    {% endif %}
+    <p>Abracos,<br/>Equipe NacionalSign</p>
+  </body>
+</html>

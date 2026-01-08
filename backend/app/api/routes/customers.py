@@ -7,11 +7,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlmodel import Session
 
-from app.api.deps import get_db, require_roles
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.core.config import settings
 from app.models.customer import Customer
 from app.models.user import UserRole, User
-from app.schemas.customer import CustomerActivationLink, CustomerCreate, CustomerRead, CustomerUpdate
+from app.schemas.customer import (
+    CustomerActivationLink,
+    CustomerCreate,
+    CustomerGrantDocumentsRequest,
+    CustomerRead,
+    CustomerRenewRequest,
+    CustomerUpdate,
+)
 from app.services.customer import CustomerService
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -70,6 +77,18 @@ def create_customer(
     return _serialize_customer(customer)
 
 
+@router.get("/me", response_model=CustomerRead)
+def get_my_company_profile(
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> CustomerRead:
+    service = _service(session)
+    customer = service.get_by_tenant(current_user.tenant_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not linked to this tenant")
+    return _serialize_customer(customer)
+
+
 @router.get("/{customer_id}", response_model=CustomerRead)
 def get_customer(
     customer_id: UUID,
@@ -96,6 +115,42 @@ def update_customer(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
     try:
         updated = service.update_customer(customer, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _serialize_customer(updated)
+
+
+@router.post("/{customer_id}/grant-documents", response_model=CustomerRead)
+def grant_customer_documents(
+    customer_id: UUID,
+    payload: CustomerGrantDocumentsRequest,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(_require_customer_admin),
+) -> CustomerRead:
+    service = _service(session)
+    customer = service.get_customer(customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    try:
+        updated = service.grant_documents(customer, payload.amount)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _serialize_customer(updated)
+
+
+@router.post("/{customer_id}/renew-plan", response_model=CustomerRead)
+def renew_customer_plan(
+    customer_id: UUID,
+    payload: CustomerRenewRequest,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(_require_customer_admin),
+) -> CustomerRead:
+    service = _service(session)
+    customer = service.get_customer(customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    try:
+        updated = service.renew_customer_plan(customer, payload.days)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return _serialize_customer(updated)
@@ -158,6 +213,20 @@ def download_contract(
     filename = customer.contract_original_filename or "contract.pdf"
     media_type = customer.contract_mime_type or "application/octet-stream"
     headers = {
-        "Content-Disposition": f"attachment; filename=\"{filename}\""
+        "Content-Disposition": f'attachment; filename="{filename}"',
     }
     return Response(content=data, media_type=media_type, headers=headers)
+
+
+@router.delete("/{customer_id}", response_class=Response)
+def delete_customer(
+    customer_id: UUID,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(_require_customer_admin),
+) -> None:
+    service = _service(session)
+    customer = service.get_customer(customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    service.delete_customer(customer)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

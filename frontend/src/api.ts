@@ -79,13 +79,48 @@ export interface Usage {
   period_start?: string;
   period_end?: string;
   documents_used: number;
+  documents_signed?: number | null;
   documents_quota?: number | null;
   users_used: number;
   users_quota?: number | null;
   documents_percent?: number | null;
+  documents_signed_percent?: number | null;
   users_percent?: number | null;
   near_limit?: boolean;
   message?: string | null;
+}
+
+export interface AdminUsageRow extends Usage {
+  tenant_name: string;
+  tenant_slug: string;
+  plan_id?: string | null;
+  plan_name?: string | null;
+  subscription_status?: string | null;
+  limit_state: 'unlimited' | 'ok' | 'near_limit' | 'exceeded';
+  limit_ratio?: number | null;
+}
+
+export interface AdminUsageResponse {
+  total: number;
+  period_start: string;
+  period_end: string;
+  items: AdminUsageRow[];
+  alerts: AdminUsageRow[];
+}
+
+export interface UsageAlertPayload {
+  start_date?: string;
+  end_date?: string;
+  emails?: string[];
+  threshold?: number;
+  only_exceeded?: boolean;
+}
+
+export interface UsageAlertResult {
+  sent: boolean;
+  alerts: number;
+  detail?: string;
+  recipients?: string[];
 }
 
 export interface DashboardMetrics {
@@ -134,6 +169,28 @@ export interface PublicMeta {
   consent_version?: string | null;
   available_fields?: string[] | null;
   requires_cpf_confirmation?: boolean;
+  group_id?: string | null;
+  group_documents?: { id: string; name: string; status: string }[] | null;
+  allow_typed_name?: boolean;
+  allow_signature_image?: boolean;
+  allow_signature_draw?: boolean;
+}
+
+export interface PublicSignatureSummary {
+  document_name: string;
+  signer_name: string;
+  status: string;
+  expires_at?: string | null;
+  can_sign: boolean;
+  reason?: string | null;
+  requires_email_confirmation?: boolean;
+  requires_phone_confirmation?: boolean;
+  supports_certificate?: boolean;
+  requires_certificate?: boolean;
+  signature_method?: string;
+  requires_cpf_confirmation?: boolean;
+  group_id?: string | null;
+  group_documents?: { id: string; name: string; status: string }[] | null;
 }
 
 export const archiveDocument = async (documentId: string, archived = true): Promise<DocumentRecord> => {
@@ -143,6 +200,20 @@ export const archiveDocument = async (documentId: string, archived = true): Prom
 
 export const deleteDocument = async (documentId: string): Promise<void> => {
   await api.delete(`/api/v1/documents/${documentId}`);
+};
+
+export const fetchTrashDocuments = async (areaId?: string): Promise<DocumentRecord[]> => {
+  const response = await api.get('/api/v1/documents/trash', { params: compactParams({ area_id: areaId }) });
+  return response.data as DocumentRecord[];
+};
+
+export const restoreDocument = async (documentId: string): Promise<DocumentRecord> => {
+  const response = await api.post(`/api/v1/documents/${documentId}/restore`);
+  return response.data as DocumentRecord;
+};
+
+export const permanentDeleteDocument = async (documentId: string): Promise<void> => {
+  await api.delete(`/api/v1/documents/${documentId}/permanent`);
 };
 
 export interface Plan {
@@ -357,6 +428,30 @@ export interface DocumentRecord {
   created_by_id: string;
   created_at: string;
   updated_at: string | null;
+  deleted_at?: string | null;
+  group_id?: string | null;
+}
+
+export interface DocumentGroupRecord {
+  id: string;
+  tenant_id: string;
+  area_id: string;
+  owner_id: string;
+  title: string | null;
+  signature_flow_mode: string;
+  separate_documents: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface DocumentGroupDetail extends DocumentGroupRecord {
+  documents: DocumentRecord[];
+}
+
+export interface DocumentGroupUploadResponse {
+  group: DocumentGroupRecord;
+  documents: DocumentRecord[];
+  group_id?: string | null;
 }
 
 export interface DocumentVersion {
@@ -538,6 +633,11 @@ export interface WorkflowTemplateStep {
   execution: 'sequential' | 'parallel';
   deadline_hours: number | null;
   notification_channel?: string | null;
+  signature_method?: 'electronic' | 'digital' | null;
+  representative_name?: string | null;
+  representative_cpf?: string | null;
+  company_name?: string | null;
+  company_tax_id?: string | null;
 }
 
 export interface WorkflowTemplate {
@@ -637,6 +737,16 @@ export interface WorkflowRead {
   updated_at: string | null;
 }
 
+export interface WorkflowGroupDispatchResponse {
+  group: DocumentGroupRecord;
+  workflows: WorkflowRead[];
+}
+
+export interface WorkflowGroupResendResponse {
+  group: DocumentGroupRecord;
+  notified: number;
+}
+
 export interface SignAgentAttempt {
   id: string;
   document_id: string;
@@ -677,10 +787,12 @@ export const fetchUsage = async (): Promise<Usage> => {
       period_start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       period_end: new Date().toISOString(),
       documents_used: 5,
+      documents_signed: 4,
       documents_quota: 20,
       users_used: 3,
       users_quota: 10,
       documents_percent: 0.25,
+      documents_signed_percent: 0.2,
       users_percent: 0.3,
       near_limit: false,
       message: null,
@@ -874,6 +986,34 @@ export const fetchCustomers = async (): Promise<CustomerSummary[]> => {
   return response.data as CustomerSummary[];
 };
 
+export const fetchMyCompanyProfile = async (): Promise<CustomerSummary> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    return {
+      id: mockId(),
+      corporate_name: 'Empresa Exemplo LTDA',
+      trade_name: 'Empresa Exemplo',
+      cnpj: '12345678000190',
+      responsible_name: 'Maria Responsável',
+      responsible_email: 'responsavel@example.com',
+      responsible_phone: '+55 11 98888-0000',
+      plan_id: 'plan-basic',
+      document_quota: 100,
+      documents_used: 12,
+      tenant_id: mockId(),
+      activation_token: null,
+      contract_file_name: null,
+      contract_uploaded_at: now,
+      contract_download_url: null,
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    };
+  }
+  const response = await api.get('/api/v1/customers/me');
+  return response.data as CustomerSummary;
+};
+
 export const createCustomer = async (payload: CustomerCreatePayload): Promise<CustomerSummary> => {
   if (isMock) {
     const now = new Date().toISOString();
@@ -921,6 +1061,42 @@ export const updateCustomer = async (customerId: string, payload: CustomerUpdate
     };
   }
   const response = await api.patch(`/api/v1/customers/${customerId}`, payload);
+  return response.data as CustomerSummary;
+};
+
+export const deleteCustomer = async (customerId: string): Promise<void> => {
+  if (isMock) {
+    return;
+  }
+  await api.delete(`/api/v1/customers/${customerId}`);
+};
+
+export const grantCustomerDocuments = async (customerId: string, amount: number): Promise<CustomerSummary> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    const customers = await fetchCustomers();
+    const current = customers.find(item => item.id === customerId) ?? customers[0];
+    return {
+      ...current,
+      document_quota: (current.document_quota ?? 0) + amount,
+      updated_at: now,
+    };
+  }
+  const response = await api.post(`/api/v1/customers/${customerId}/grant-documents`, { amount });
+  return response.data as CustomerSummary;
+};
+
+export const renewCustomerPlan = async (customerId: string, days: number = 30): Promise<CustomerSummary> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    const customers = await fetchCustomers();
+    const current = customers.find(item => item.id === customerId) ?? customers[0];
+    return {
+      ...current,
+      updated_at: now,
+    };
+  }
+  const response = await api.post(`/api/v1/customers/${customerId}/renew-plan`, { days });
   return response.data as CustomerSummary;
 };
 
@@ -1163,6 +1339,26 @@ export const createDocumentRecord = async (payload: { name: string; area_id: str
   return response.data as DocumentRecord;
 };
 
+export const fetchAdminUsageOverview = async (params?: {
+  start_date?: string;
+  end_date?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+  threshold?: number;
+  include_empty?: boolean;
+}): Promise<AdminUsageResponse> => {
+  const response = await api.get('/api/v1/billing/admin/usage', {
+    params: compactParams(params ?? {}),
+  });
+  return response.data as AdminUsageResponse;
+};
+
+export const sendUsageAlertEmail = async (payload: UsageAlertPayload): Promise<UsageAlertResult> => {
+  const response = await api.post('/api/v1/billing/admin/usage/alerts', payload);
+  return response.data as UsageAlertResult;
+};
+
 export const uploadDocumentVersion = async (documentId: string, files: File | File[]): Promise<DocumentVersion> => {
   const provided = Array.isArray(files) ? files : [files];
   const fileList = provided.filter((item): item is File => Boolean(item));
@@ -1187,14 +1383,98 @@ export const uploadDocumentVersion = async (documentId: string, files: File | Fi
     throw new Error('Nenhum arquivo selecionado.');
   }
 
-    const form = new FormData();
-    fileList.forEach((file, index) => {
-      const filename = file.name || `arquivo-${index + 1}.pdf`;
-      form.append('files', file, filename);
-    });
-    const response = await api.post(`/api/v1/documents/${documentId}/versions`, form);
-    return response.data as DocumentVersion;
+  const form = new FormData();
+  fileList.forEach(file => form.append('files', file));
+  const response = await api.post(
+    `/api/v1/documents/${documentId}/versions`,
+    form,
+    {
+      headers: {
+        Accept: 'application/json',
+      },
+    },
+  );
+  return response.data as DocumentVersion;
+};
+
+export const createDocumentGroupUpload = async (params: {
+  title?: string | null;
+  area_id: string;
+  signature_flow_mode?: string;
+  separate_documents?: boolean;
+  files: File[];
+}): Promise<DocumentGroupUploadResponse> => {
+  const provided = Array.isArray(params.files) ? params.files.filter(Boolean) : [];
+  if (provided.length === 0) {
+    throw new Error('Selecione ao menos um arquivo.');
+  }
+  if (isMock) {
+    const now = new Date().toISOString();
+    const group: DocumentGroupRecord = {
+      id: mockId(),
+      tenant_id: mockId(),
+      area_id: params.area_id,
+      owner_id: mockId(),
+      title: params.title ?? 'Lote Mock',
+      signature_flow_mode: params.signature_flow_mode ?? 'SEQUENTIAL',
+      created_at: now,
+      updated_at: now,
+    };
+    const documents: DocumentRecord[] = provided.map((file, index) => ({
+      id: mockId(),
+      tenant_id: group.tenant_id,
+      area_id: group.area_id,
+      name: file.name || `Documento ${index + 1}`,
+      status: 'draft',
+      last_active_status: null,
+      current_version_id: null,
+      created_by_id: group.owner_id,
+      created_at: now,
+      updated_at: now,
+      group_id: group.id,
+    }));
+    return { group, documents, group_id: group.id };
+  }
+  const form = new FormData();
+  form.append('area_id', params.area_id);
+  if (params.title) {
+    form.append('title', params.title);
+  }
+  form.append('signature_flow_mode', (params.signature_flow_mode ?? 'SEQUENTIAL').toUpperCase());
+  if (params.separate_documents) {
+    form.append('separate_documents', 'true');
+  }
+  provided.forEach(file => {
+    form.append('files', file);
+  });
+  const response = await api.post('/api/v1/documents/groups', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  const data = response.data as DocumentGroupUploadResponse;
+  return {
+    ...data,
+    group_id: data.group?.id ?? data.group_id ?? null,
   };
+};
+
+export const fetchDocumentGroup = async (groupId: string): Promise<DocumentGroupDetail> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    return {
+      id: groupId,
+      tenant_id: mockId(),
+      area_id: mockId(),
+      owner_id: mockId(),
+      title: 'Grupo Mock',
+      signature_flow_mode: 'SEQUENTIAL',
+      created_at: now,
+      updated_at: now,
+      documents: (await fetchDocuments(undefined)).map(doc => ({ ...doc, group_id: groupId })),
+    };
+  }
+  const response = await api.get(`/api/v1/documents/groups/${groupId}`);
+  return response.data as DocumentGroupDetail;
+};
 
 export const searchContacts = async (query: string): Promise<ContactDirectoryEntry[]> => {
   const response = await api.get("/api/v1/contacts", { params: { q: query } });
@@ -1550,6 +1830,62 @@ export const resendDocumentNotifications = async (documentId: string): Promise<{
   return response.data as { notified: number };
 };
 
+export const dispatchGroupWorkflow = async (
+  groupId: string,
+  payload: WorkflowDispatchPayload,
+): Promise<WorkflowGroupDispatchResponse> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    return {
+      group: {
+        id: groupId,
+        tenant_id: mockId(),
+        area_id: mockId(),
+        owner_id: mockId(),
+        title: 'Grupo Mock',
+        signature_flow_mode: payload.steps && payload.steps.length > 1 ? 'PARALLEL' : 'SEQUENTIAL',
+        created_at: now,
+        updated_at: now,
+      },
+      workflows: Array.from({ length: 2 }).map(() => ({
+        id: mockId(),
+        document_id: mockId(),
+        template_id: payload.template_id ?? null,
+        status: 'pending',
+        started_at: now,
+        completed_at: null,
+        created_at: now,
+        updated_at: now,
+      })),
+    };
+  }
+  const response = await api.post(`/api/v1/documents/groups/${groupId}/dispatch`, payload);
+  return response.data as WorkflowGroupDispatchResponse;
+};
+
+export const resendGroupNotifications = async (
+  groupId: string,
+): Promise<WorkflowGroupResendResponse> => {
+  if (isMock) {
+    const now = new Date().toISOString();
+    return {
+      group: {
+        id: groupId,
+        tenant_id: mockId(),
+        area_id: mockId(),
+        owner_id: mockId(),
+        title: 'Grupo Mock',
+        signature_flow_mode: 'SEQUENTIAL',
+        created_at: now,
+        updated_at: now,
+      },
+      notified: 0,
+    };
+  }
+  const response = await api.post(`/api/v1/documents/groups/${groupId}/resend`);
+  return response.data as WorkflowGroupResendResponse;
+};
+
 export const fetchSigningCertificates = async (): Promise<SigningCertificate[]> => {
   if (isMock) {
     return [
@@ -1587,25 +1923,41 @@ export const fetchPublicDocumentFields = async (token: string): Promise<Document
   return response.data as DocumentField[];
 };
 
+export interface PublicSignPayload {
+  action: 'sign';
+  signature_type: 'digital' | 'electronic';
+  typed_name?: string;
+  confirm_email?: string;
+  confirm_phone_last4?: string;
+  confirm_cpf?: string;
+  signature_image?: string;
+  signature_image_mime?: string;
+  signature_image_name?: string;
+  consent?: boolean;
+  consent_text?: string;
+  consent_version?: string;
+  fields?: DocumentFieldPayload[];
+  documents?: string[];
+}
+
 export const postPublicSign = async (
   token: string,
-  body: {
-    action: 'sign';
-    signature_type: 'digital' | 'electronic';
-    typed_name?: string;
-    confirm_email?: string;
-    confirm_phone_last4?: string;
-    confirm_cpf?: string;
-    signature_image?: string;
-    signature_image_mime?: string;
-    signature_image_name?: string;
-    consent?: boolean;
-    consent_text?: string;
-    consent_version?: string;
-  },
-): Promise<{ ok: boolean; status: string }> => {
+  body: PublicSignPayload,
+): Promise<PublicSignatureSummary> => {
   const response = await api.post(`/public/signatures/${encodeURIComponent(token)}`, body);
-  return response.data as { ok: boolean; status: string };
+  return response.data as PublicSignatureSummary;
+};
+
+export interface PublicGroupSignPayload extends PublicSignPayload {
+  documents: string[];
+}
+
+export const groupPublicSign = async (
+  token: string,
+  payload: PublicGroupSignPayload,
+): Promise<PublicSignatureSummary[]> => {
+  const response = await api.post(`/public/signatures/${encodeURIComponent(token)}/group-sign`, payload);
+  return response.data as PublicSignatureSummary[];
 };
 
 export interface PublicAgentSignPayload {
@@ -1742,93 +2094,163 @@ export const createWorkflowTemplate = async (payload: {
   return response.data as WorkflowTemplate;
 };
 
-const templatesEndpoint = '/admin/templates';
-
-const submitTemplateForm = async (form: URLSearchParams) => {
-  await api.post(templatesEndpoint, form, {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  });
-};
+const templatesEndpoint = '/api/v1/workflows/templates';
+const legacyTemplatesEndpoint = '/admin/templates';
 
 export const fetchTemplates = async (tenantId: Maybe<string>, areaId?: Maybe<string>): Promise<TemplateIndexResponse> => {
   if (!tenantId) {
     return { templates: [], areas: [], documents: [] };
   }
   if (isMock) {
+    const now = new Date().toISOString();
     return {
       templates: [
         {
           id: mockId(),
-          tenant_id: tenantId,
+          tenant_id: tenantId as string,
           area_id: areaId ?? mockId(),
-          name: 'Fluxo PadrÃ£o',
+          name: 'Fluxo Padrão',
           description: 'Template de exemplo',
           is_active: true,
           steps: [
             { order: 1, role: 'signer', action: 'sign', execution: 'sequential', deadline_hours: null, notification_channel: 'email' },
           ],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
         },
       ],
       areas: [{ id: areaId ?? mockId(), name: 'Geral' }],
       documents: [],
     };
   }
-  const response = await api.get('/admin/templates', {
-    params: compactParams({ tenant_id: tenantId, area_id: areaId }),
-    headers: { Accept: 'application/json' },
-  });
-  return response.data as TemplateIndexResponse;
+  try {
+    const response = await api.get(templatesEndpoint, {
+      params: compactParams({
+        area_id: areaId ?? undefined,
+        include_inactive: true,
+      }),
+    });
+
+    let areaSummaries: { id: string; name: string }[] = [];
+    try {
+      const areaList = await fetchAreas();
+      areaSummaries = areaList.map(area => ({ id: area.id, name: area.name }));
+    } catch {
+      areaSummaries = [];
+    }
+
+    return {
+      templates: response.data as WorkflowTemplate[],
+      areas: areaSummaries,
+      documents: [],
+    };
+  } catch (error) {
+    if (!shouldFallbackToLegacy(error)) {
+      throw error;
+    }
+    const response = await api.get(legacyTemplatesEndpoint, {
+      params: compactParams({ tenant_id: tenantId, area_id: areaId }),
+      headers: { Accept: 'application/json' },
+    });
+    return response.data as TemplateIndexResponse;
+  }
 };
+
+const postLegacyTemplateForm = async (form: URLSearchParams) => {
+  await api.post(legacyTemplatesEndpoint, form, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+};
+
+const shouldFallbackToLegacy = (error: unknown) =>
+  axios.isAxiosError(error) && error.response?.status === 403;
 
 export const createTemplate = async (tenantId: string, payload: { area_id: string; name: string; description?: string; steps: WorkflowTemplateStep[] }) => {
   if (isMock) return;
-  const form = new URLSearchParams();
-  form.append('action', 'create');
-  form.append('tenant_id', tenantId);
-  form.append('area_id', payload.area_id);
-  form.append('name', payload.name);
-  if (payload.description) form.append('description', payload.description);
-  form.append('steps_json', JSON.stringify(payload.steps));
-  await submitTemplateForm(form);
+  try {
+    await api.post(templatesEndpoint, payload);
+  } catch (error) {
+    if (!shouldFallbackToLegacy(error)) throw error;
+    const form = new URLSearchParams();
+    form.append('action', 'create');
+    form.append('tenant_id', tenantId);
+    form.append('area_id', payload.area_id);
+    form.append('name', payload.name);
+    if (payload.description) form.append('description', payload.description);
+    form.append('steps_json', JSON.stringify(payload.steps));
+    await postLegacyTemplateForm(form);
+  }
 };
 
 export const updateTemplate = async (tenantId: string, templateId: string, payload: { name?: string; description?: string | null; steps?: WorkflowTemplateStep[] }, areaId?: string) => {
   if (isMock) return;
-  const form = new URLSearchParams();
-  form.append('action', 'update');
-  form.append('tenant_id', tenantId);
-  if (areaId) form.append('area_id', areaId);
-  form.append('template_id', templateId);
-  if (payload.name) form.append('name', payload.name);
-  if (payload.description !== undefined) form.append('description', payload.description ?? '');
-  if (payload.steps) form.append('steps_json', JSON.stringify(payload.steps));
-  await submitTemplateForm(form);
+  try {
+    await api.put(`${templatesEndpoint}/${templateId}`, payload);
+  } catch (error) {
+    if (!shouldFallbackToLegacy(error)) throw error;
+    const form = new URLSearchParams();
+    form.append('action', 'update');
+    form.append('tenant_id', tenantId);
+    if (areaId) form.append('area_id', areaId);
+    form.append('template_id', templateId);
+    if (payload.name) form.append('name', payload.name);
+    if (payload.description !== undefined) form.append('description', payload.description ?? '');
+    if (payload.steps) form.append('steps_json', JSON.stringify(payload.steps));
+    await postLegacyTemplateForm(form);
+  }
 };
 
-export const toggleTemplate = async (tenantId: string, templateId: string, areaId?: string) => {
+export const toggleTemplate = async (tenantId: string, templateId: string, nextStatus: boolean, areaId?: string) => {
   if (isMock) return;
-  const form = new URLSearchParams();
-  form.append('action', 'toggle');
-  form.append('tenant_id', tenantId);
-  if (areaId) form.append('area_id', areaId);
-  form.append('template_id', templateId);
-  await submitTemplateForm(form);
+  try {
+    await api.put(`${templatesEndpoint}/${templateId}`, { is_active: nextStatus });
+  } catch (error) {
+    if (!shouldFallbackToLegacy(error)) throw error;
+    const form = new URLSearchParams();
+    form.append('action', 'toggle');
+    form.append('tenant_id', tenantId);
+    if (areaId) form.append('area_id', areaId);
+    form.append('template_id', templateId);
+    await postLegacyTemplateForm(form);
+  }
 };
 
 export const duplicateTemplate = async (tenantId: string, templateId: string, name: string, targetAreaId?: string, areaId?: string) => {
   if (isMock) return;
-  const form = new URLSearchParams();
-  form.append('action', 'duplicate');
-  form.append('tenant_id', tenantId);
-  if (areaId) form.append('area_id', areaId);
-  form.append('template_id', templateId);
-  form.append('duplicate_name', name);
-  if (targetAreaId) form.append('target_area_id', targetAreaId);
-  await submitTemplateForm(form);
+  try {
+    await api.post(`${templatesEndpoint}/${templateId}/duplicate`, {
+      name,
+      area_id: targetAreaId ?? null,
+    });
+  } catch (error) {
+    if (!shouldFallbackToLegacy(error)) throw error;
+    const form = new URLSearchParams();
+    form.append('action', 'duplicate');
+    form.append('tenant_id', tenantId);
+    if (areaId) form.append('area_id', areaId);
+    form.append('template_id', templateId);
+    form.append('duplicate_name', name);
+    if (targetAreaId) form.append('target_area_id', targetAreaId);
+    await postLegacyTemplateForm(form);
+  }
 };
 
+export const deleteTemplate = async (tenantId: string, templateId: string) => {
+  if (isMock) return;
+  try {
+    await api.delete(`${templatesEndpoint}/${templateId}`);
+  } catch (error) {
+    if (shouldFallbackToLegacy(error)) {
+      const form = new URLSearchParams();
+      form.append('action', 'delete');
+      form.append('tenant_id', tenantId);
+      form.append('template_id', templateId);
+      await postLegacyTemplateForm(form);
+      return;
+    }
+    throw error;
+  }
+};
 /** ========================
  *  NOVO: downloads pÃ³s-assinatura
  *  Endpoints sugeridos (ajuste se seu backend usar caminhos diferentes):
@@ -1901,3 +2323,5 @@ export interface ContactDirectoryEntry {
   created_at?: string | null;
   updated_at?: string | null;
 }
+
+

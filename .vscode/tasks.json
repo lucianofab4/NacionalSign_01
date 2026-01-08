@@ -1,0 +1,55 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Backend: Run tests (pytest.ini bypass)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location c:\\nacionalSign\\backend; if (!(Test-Path .\\pytest.ini)) { Set-Content -NoNewline -Path .\\pytest.ini -Value \"[pytest]`npythonpath = .`n\" }; .\\.venv\\Scripts\\python.exe -m pytest -q"
+			],
+			"problemMatcher": [
+				"$pytest"
+			],
+			"group": "test"
+		},
+		{
+			"label": "Backend: Run tests (pytest)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location c:\\nacionalSign\\backend; .\\.venv\\Scripts\\python.exe -m pytest -q"
+			],
+			"problemMatcher": [
+				"$pytest"
+			],
+			"group": "test"
+		},
+		{
+			"label": "Backend: Run tests (pytest)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location c:\\nacionalSign\\backend; .\\.venv\\Scripts\\python.exe -m pytest -q"
+			],
+			"group": "test"
+		},
+		{
+			"label": "Backend: Run tests (pytest)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Set-Location c:\\nacionalSign\\backend; .\\.venv\\Scripts\\python.exe -m pytest -q"
+			],
+			"group": "test"
+		}
+	]
+}

@@ -63,6 +63,15 @@ class FakeTwilioClient:
         self.sent.append(kwargs)
 
 
+class DummySession:
+    class _EmptyResult:
+        def first(self):
+            return None
+
+    def exec(self, *_args, **_kwargs):
+        return DummySession._EmptyResult()
+
+
 def test_email_notification_success(monkeypatch):
     fake = FakeSMTP("smtp.example.com", 587, timeout=10)
 
@@ -73,7 +82,7 @@ def test_email_notification_success(monkeypatch):
     monkeypatch.setattr(smtplib, "SMTP", fake_smtp)
 
     audit = AuditStub()
-    service = NotificationService(audit_service=audit)
+    service = NotificationService(audit_service=audit, session=DummySession())
     service.configure_public_base_url("http://example.com")
     service.configure_email(
         host="smtp.example.com",
@@ -113,7 +122,7 @@ def test_email_notification_includes_agent_download_link(monkeypatch):
 
     audit = AuditStub()
     download_url = "https://downloads.example.com/agente.exe"
-    service = NotificationService(audit_service=audit, agent_download_url=download_url)
+    service = NotificationService(audit_service=audit, agent_download_url=download_url, session=DummySession())
     service.configure_public_base_url("http://example.com")
     service.configure_email(
         host="smtp.example.com",
@@ -139,6 +148,112 @@ def test_email_notification_includes_agent_download_link(monkeypatch):
     assert download_url in text_part.get_content()
 
 
+def test_signature_request_uses_customer_trade_name(monkeypatch):
+    fake = FakeSMTP("smtp.example.com", 587, timeout=10)
+    monkeypatch.setattr(smtplib, "SMTP", lambda host, port, timeout=None: fake)
+
+    class StubResult:
+        def __init__(self, value):
+            self.value = value
+
+        def first(self):
+            return self.value
+
+    class StubSession:
+        def __init__(self, result):
+            self.result = result
+
+        def exec(self, *_args, **_kwargs):
+            return StubResult(self.result)
+
+    audit = AuditStub()
+    session = StubSession(SimpleNamespace(trade_name="Fantasia Ltda", corporate_name="Razao Ltda"))
+    service = NotificationService(audit_service=audit, session=session)
+    service.configure_public_base_url("http://example.com")
+    service.configure_email(
+        host="smtp.example.com",
+        port=587,
+        sender="Sender <sender@example.com>",
+        username="user",
+        password="pass",
+        starttls=True,
+    )
+
+    request = SimpleNamespace(id="req-1")
+    party = SimpleNamespace(email="to@example.com", full_name="Test User", notification_channel="email")
+    document = SimpleNamespace(
+        id="doc-1",
+        name="Contrato ABC",
+        tenant_id="ae3ddf60-0611-4bd5-80f1-a335190e2f88",
+        tenant=SimpleNamespace(name="Admin Tenant"),
+        customer=SimpleNamespace(trade_name="Fantasia Ltda", corporate_name="Razao Ltda"),
+    )
+
+    assert service.notify_signature_request(request, party, document, token="token123") is True
+    message = fake.sent_messages[0]
+    html_part = message.get_body(preferencelist=("html",))
+    assert html_part is not None
+    html_content = html_part.get_content()
+    assert "Fantasia Ltda" in html_content
+    assert "Admin Tenant" not in html_content
+
+
+def test_signature_request_uses_document_customer_name(monkeypatch):
+    fake = FakeSMTP("smtp.example.com", 587, timeout=10)
+    monkeypatch.setattr(smtplib, "SMTP", lambda host, port, timeout=None: fake)
+
+    audit = AuditStub()
+    service = NotificationService(audit_service=audit, session=DummySession())
+    service.configure_public_base_url("http://example.com")
+    service.configure_email(
+        host="smtp.example.com",
+        port=587,
+        sender="Sender <sender@example.com>",
+        username="user",
+        password="pass",
+        starttls=True,
+    )
+
+    document = SimpleNamespace(
+        id="doc-2",
+        name="Contrato DEF",
+        customer=SimpleNamespace(trade_name=None, corporate_name="Empresa Real S.A."),
+    )
+    request = SimpleNamespace(id="req-2")
+    party = SimpleNamespace(email="to@example.com", full_name="User B", notification_channel="email")
+
+    assert service.notify_signature_request(request, party, document, token="token456") is True
+    html_part = fake.sent_messages[0].get_body(preferencelist=("html",))
+    assert html_part is not None
+    assert "Empresa Real S.A." in html_part.get_content()
+
+
+def test_signature_request_neutral_fallback_when_missing_customer(monkeypatch):
+    fake = FakeSMTP("smtp.example.com", 587, timeout=10)
+    monkeypatch.setattr(smtplib, "SMTP", lambda host, port, timeout=None: fake)
+
+    audit = AuditStub()
+    service = NotificationService(audit_service=audit, session=DummySession())
+    service.configure_public_base_url("http://example.com")
+    service.configure_email(
+        host="smtp.example.com",
+        port=587,
+        sender="Sender <sender@example.com>",
+        username="user",
+        password="pass",
+        starttls=True,
+    )
+
+    request = SimpleNamespace(id="req-3")
+    party = SimpleNamespace(email="to@example.com", full_name="Test User", notification_channel="email")
+    document = SimpleNamespace(id="doc-3", name="Contrato XYZ", tenant_id=None, tenant=None, created_by=None)
+
+    assert service.notify_signature_request(request, party, document, token="token789") is True
+    html_part = fake.sent_messages[0].get_body(preferencelist=("html",))
+    assert html_part is not None
+    assert "Empresa solicitante" in html_part.get_content()
+
+
 def test_email_notification_error_is_audited(monkeypatch):
     class ErrorSMTP(FakeSMTP):
         def send_message(self, message):  # noqa: D401
@@ -152,7 +267,7 @@ def test_email_notification_error_is_audited(monkeypatch):
     monkeypatch.setattr(smtplib, "SMTP", fake_smtp)
 
     audit = AuditStub()
-    service = NotificationService(audit_service=audit)
+    service = NotificationService(audit_service=audit, session=DummySession())
     service.configure_public_base_url("http://example.com")
     service.configure_email(
         host="smtp.example.com",
@@ -176,7 +291,7 @@ def test_email_notification_error_is_audited(monkeypatch):
 
 def test_notification_skipped_when_channel_unsupported():
     audit = AuditStub()
-    service = NotificationService(audit_service=audit)
+    service = NotificationService(audit_service=audit, session=DummySession())
 
     request = SimpleNamespace(id="req-1")
     party = SimpleNamespace(email=None, full_name="Test User", notification_channel="sms")
@@ -190,7 +305,11 @@ def test_notification_skipped_when_channel_unsupported():
 
 def test_sms_notification_success(monkeypatch):
     audit = AuditStub()
-    service = NotificationService(audit_service=audit, public_base_url="http://example.com")
+    service = NotificationService(
+        audit_service=audit,
+        public_base_url="http://example.com",
+        session=DummySession(),
+    )
     service.configure_sms(account_sid="sid", auth_token="token", from_number="+123456789")
 
     fake_client = FakeTwilioClient()
@@ -214,7 +333,7 @@ def test_sms_notification_success(monkeypatch):
 
 def test_sms_notification_skipped_without_config():
     audit = AuditStub()
-    service = NotificationService(audit_service=audit)
+    service = NotificationService(audit_service=audit, session=DummySession())
 
     request = SimpleNamespace(id="req-1")
     party = SimpleNamespace(phone_number="+5511999999999", notification_channel="sms", full_name="Test")
@@ -233,7 +352,7 @@ def test_notify_workflow_completed_with_attachments(monkeypatch, tmp_path):
     monkeypatch.setattr(smtplib, "SMTP", fake_smtp)
 
     audit = AuditStub()
-    service = NotificationService(audit_service=audit)
+    service = NotificationService(audit_service=audit, session=DummySession())
     service.configure_email(
         host="smtp.example.com",
         port=587,

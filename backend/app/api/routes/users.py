@@ -12,6 +12,7 @@ from app.schemas.user import UserCreate, UserRead, UserUpdate, UserSettingsUpdat
 from app.services.audit import AuditService
 from app.services.notification import NotificationService
 from app.services.user import UserService
+from app.utils.security import get_password_hash
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -29,6 +30,7 @@ def _build_notification_service(session: Session | None = None) -> NotificationS
         audit_service=audit_service,
         public_base_url=settings.resolved_public_app_url(),
         agent_download_url=settings.signing_agent_download_url,
+        session=session,
     )
     service.apply_email_settings(settings)
     if not (service.sendgrid_config or service.email_config):
@@ -187,6 +189,13 @@ def send_credentials_email(
     target_user = user_service.get_user(payload.user_id)
     if not target_user or target_user.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Atualiza a senha do usuário com a credencial temporária informada
+    target_user.password_hash = get_password_hash(payload.temp_password)
+    target_user.must_change_password = True
+    session.add(target_user)
+    session.commit()
+    session.refresh(target_user)
 
     notifier = _build_notification_service(session)
     if not notifier:

@@ -360,3 +360,248 @@ WHERE tenants.slug = ?]
 2025-12-11 18:13:02,303 INFO httpx HTTP Request: GET http://testserver/api/v1/tenants/areas "HTTP/1.1 200 OK"
 2025-12-11 18:13:02,338 INFO httpx HTTP Request: POST http://testserver/api/v1/documents "HTTP/1.1 201 Created"
 2025-12-11 18:13:02,353 INFO httpx HTTP Request: POST http://testserver/api/v1/documents/b7a9e3e5-83d6-4477-9dd2-eb8570998ed7/versions "HTTP/1.1 400 Bad Request"
+2026-01-05 11:22:14,915 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 11:22:19,557 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 11:22:19,557 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 11:35:27,303 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 11:35:29,434 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 11:35:29,434 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 11:49:38,059 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 11:49:40,099 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 11:49:40,099 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 11:49:40,588 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:49:40,612 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:49:40,661 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:49:40,674 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:49:43,825 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 11:49:43,827 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 11:49:57,911 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 11:50:00,004 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 11:50:00,004 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 11:50:00,338 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:00,361 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:00,403 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:00,426 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:03,508 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 11:50:03,509 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 11:50:04,368 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 11:50:04,651 WARNING app.services.document Falha ao gerar protocolo visual: 
+fileName=<_io.BytesIO object at 0x000001CFDEC196C0> identity=[ImageReader@0x1cfdef29d50] cannot identify image file <_io.BytesIO object at 0x000001CFDEC196C0>
+2026-01-05 11:50:26,475 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 11:50:28,627 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 11:50:28,627 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 11:50:28,906 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:28,929 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:28,984 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:29,004 WARNING app.services.notification Nome fantasia do cliente não encontrado para tenant_ids=[None, None]. Usando fallback padrão.
+2026-01-05 11:50:32,278 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 11:50:32,278 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 11:59:23,580 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 11:59:25,670 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 11:59:25,670 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 11:59:26,025 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 11:59:26,054 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 11:59:26,099 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 11:59:26,133 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:00:28,885 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:00:31,193 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:00:31,193 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:00:31,600 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:00:31,627 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:00:31,681 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:00:31,700 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:00:35,086 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:00:35,086 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:18:49,173 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:18:51,291 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:18:51,291 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:18:52,568 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:18:52,647 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:18:52,662 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:18:52,689 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:18:52,695 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:18:52,727 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:18:52,824 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:18:52,845 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:18:56,120 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:18:56,120 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:31:04,147 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:31:06,226 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:31:06,227 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:31:07,490 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:31:07,565 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:31:07,580 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:31:07,604 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:31:08,369 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:31:08,444 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:31:08,475 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/62ccd69b-60ee-49fa-b76c-94b08be63dea "HTTP/1.1 403 Forbidden"
+2026-01-05 12:31:08,959 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:31:08,996 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:31:09,046 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:31:09,067 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:31:12,013 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:31:12,013 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:31:26,576 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:31:28,621 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:31:28,621 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:31:29,773 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:31:29,845 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:31:29,859 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:31:29,882 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:31:30,590 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:31:30,663 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:31:30,691 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/cf77faf0-4d2a-49de-9279-e2bc213ab889 "HTTP/1.1 403 Forbidden"
+2026-01-05 12:31:31,243 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:31:31,274 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:31:31,345 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:31:31,362 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:31:34,053 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:31:34,054 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:32:02,942 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:32:05,298 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:32:05,298 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:32:06,598 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:32:06,664 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:06,678 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:32:06,704 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:32:07,366 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:32:07,441 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:07,851 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:07,882 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:07,930 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:32:07,946 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:10,579 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:32:10,579 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:32:26,894 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:32:29,311 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:32:29,311 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:32:30,572 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:32:30,641 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:30,658 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:32:30,681 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:32:31,300 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:32:31,376 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:31,457 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:31,486 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/0b6143fa-a14d-4321-a30b-d0d0fcf11531 "HTTP/1.1 403 Forbidden"
+2026-01-05 12:32:31,907 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:31,932 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:31,990 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:32:32,003 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:34,868 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:32:34,868 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:32:53,440 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:32:55,604 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:32:55,605 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:32:56,773 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:32:56,843 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:56,863 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:32:56,886 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:32:57,519 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:32:57,617 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:57,697 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:32:57,745 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/4ddbde18-c1e1-412b-9ed2-395e48b7c32e "HTTP/1.1 204 No Content"
+2026-01-05 12:32:58,168 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:58,189 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:32:58,230 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:32:58,252 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:00,982 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:33:00,982 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:33:17,803 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:33:19,819 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:33:19,819 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:33:20,996 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:33:21,095 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:33:21,110 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:33:21,135 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:33:21,880 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:33:21,985 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:33:22,087 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:33:22,130 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/0b7d5635-7980-4cfd-bcd5-1e727c06dda7 "HTTP/1.1 204 No Content"
+2026-01-05 12:33:22,871 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:22,907 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:22,962 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:33:22,980 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:25,682 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:33:25,683 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 12:33:40,630 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 12:33:42,788 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 12:33:42,788 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 12:33:43,973 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:33:44,043 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:33:44,060 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-05 12:33:44,083 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-05 12:33:44,895 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-05 12:33:44,982 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:33:45,079 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-05 12:33:45,132 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/a99d09d0-b490-463f-912d-63ecc0e6a101 "HTTP/1.1 204 No Content"
+2026-01-05 12:33:45,145 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:45,179 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:45,236 WARNING app.services.notification Customer não encontrado para document_id=doc-3. Usando fallback.
+2026-01-05 12:33:45,255 WARNING app.services.notification Customer não encontrado para document_id=doc-1. Usando fallback.
+2026-01-05 12:33:48,755 WARNING nacionalsign.icp Falha na integração ICP: IcpIntegrationService.__init__() takes 1 positional argument but 2 were given
+2026-01-05 12:33:48,755 WARNING app.services.document Falha ao gerar protocolo visual: startxref not found
+2026-01-05 19:15:16,144 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 19:15:18,793 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 19:15:18,794 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 19:15:53,230 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 19:15:55,718 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 19:15:55,718 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 19:16:27,510 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 19:16:29,568 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 19:16:29,568 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 19:17:11,888 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 19:17:13,935 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 19:17:13,935 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 19:17:51,462 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 19:17:54,087 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 19:17:54,087 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-05 19:18:23,886 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-05 19:18:26,387 INFO nacionalsign NacionalSign API inicializada
+2026-01-05 19:18:26,387 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-06 02:38:16,064 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-06 02:38:20,341 INFO nacionalsign NacionalSign API inicializada
+2026-01-06 02:38:20,341 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-06 02:39:39,382 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-06 02:39:41,645 INFO nacionalsign NacionalSign API inicializada
+2026-01-06 02:39:41,645 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-07 13:06:53,264 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-07 13:06:56,267 INFO nacionalsign NacionalSign API inicializada
+2026-01-07 13:06:56,268 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-07 13:06:57,744 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:06:57,823 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:06:57,842 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-07 13:06:57,871 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-07 13:06:58,620 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:06:58,709 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:06:58,845 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:06:58,911 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/3e01ac00-d737-4145-a370-d03e68a3ad41 "HTTP/1.1 204 No Content"
+2026-01-07 13:06:59,830 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:06:59,934 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:07:00,048 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:07:00,123 INFO httpx HTTP Request: POST http://testserver/api/v1/customers/837d69c1-046b-4b64-bb6e-619c00b2c07d/grant-documents "HTTP/1.1 200 OK"
+2026-01-07 13:07:01,697 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:07:01,791 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:07:01,885 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:07:01,949 INFO httpx HTTP Request: POST http://testserver/api/v1/customers/8cce878b-1490-479d-8318-e17caaff86c1/renew-plan "HTTP/1.1 200 OK"
+2026-01-07 13:08:22,681 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-07 13:08:25,176 INFO nacionalsign NacionalSign API inicializada
+2026-01-07 13:08:25,176 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']
+2026-01-07 13:08:26,488 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:08:26,588 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:26,607 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 404 Not Found"
+2026-01-07 13:08:26,630 INFO httpx HTTP Request: GET http://testserver/api/v1/customers/me "HTTP/1.1 200 OK"
+2026-01-07 13:08:27,454 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:08:27,563 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:27,654 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:27,706 INFO httpx HTTP Request: DELETE http://testserver/api/v1/customers/63fd3f71-a88c-4584-92ba-cac44da1828a "HTTP/1.1 204 No Content"
+2026-01-07 13:08:28,469 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:08:28,568 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:28,662 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:28,722 INFO httpx HTTP Request: POST http://testserver/api/v1/customers/feb27669-a89c-495f-9129-061d594f64e4/grant-documents "HTTP/1.1 200 OK"
+2026-01-07 13:08:29,412 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/register "HTTP/1.1 201 Created"
+2026-01-07 13:08:29,485 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:29,587 INFO httpx HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+2026-01-07 13:08:29,649 INFO httpx HTTP Request: POST http://testserver/api/v1/customers/efa200a8-128c-4af1-b13e-2b54dbefd249/renew-plan "HTTP/1.1 200 OK"
+2026-01-07 14:39:41,622 INFO nacionalsign Banco de dados conectado: sqlite:///./dev.db
+2026-01-07 14:39:43,952 INFO nacionalsign NacionalSign API inicializada
+2026-01-07 14:39:43,952 INFO nacionalsign CORS configurado com origins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000', 'http://localhost:3000', 'http://127.0.0.1:3000']

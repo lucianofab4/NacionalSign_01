@@ -99,6 +99,10 @@
         <div class="content">
             <div class="summary">
                 <dl>
+                    {% if requester_name %}
+                    <dt>Empresa solicitante</dt>
+                    <dd>{{ requester_name }}</dd>
+                    {% endif %}
                     <dt>Documento</dt>
                     <dd>{{ document_name }}</dd>
                     {% if document_status %}
@@ -108,6 +112,25 @@
                     {% if deadline_display %}
                         <dt>Prazo para assinatura</dt>
                         <dd>{{ deadline_display }}</dd>
+                    {% endif %}
+                    {% if group_title %}
+                        <dt>Grupo</dt>
+                        <dd>{{ group_title }}</dd>
+                    {% endif %}
+                    {% if group_documents %}
+                        <dt>Documentos inclu&iacute;dos</dt>
+                        <dd>
+                            <ul style="margin: 6px 0 0; padding-left: 16px; color: #0f172a;">
+                                {% for item in group_documents %}
+                                    <li>
+                                        <strong>{{ item.name }}</strong>
+                                        {% if item.status %}
+                                            <span style="color:#475569;">— {{ item.status }}</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </dd>
                     {% endif %}
                 </dl>
             </div>

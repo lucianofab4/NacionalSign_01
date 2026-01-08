@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, ValidationInfo, field_validator
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator
 
 from app.schemas.common import IDModel, Timestamped
 
@@ -118,3 +118,11 @@ class CustomerActivationCompleteResponse(BaseModel):
     tenant_id: UUID
     user_id: UUID
     login_url: str
+
+
+class CustomerGrantDocumentsRequest(BaseModel):
+    amount: int = Field(gt=0, le=100000)
+
+
+class CustomerRenewRequest(BaseModel):
+    days: int = Field(default=30, gt=0, le=365)

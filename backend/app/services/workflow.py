@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import base64
 import binascii
 import hashlib
@@ -9,12 +8,11 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Iterable, Any, Dict, Tuple
 from uuid import UUID
-
 from fastapi import HTTPException
 from sqlmodel import Session, select
-
 from app.core.config import settings
-from app.models.document import AuditArtifact, Document, DocumentParty, DocumentField, DocumentStatus
+from app.models.document import AuditArtifact, Document, DocumentGroup, DocumentParty, DocumentField, DocumentStatus
+from app.models.customer import Customer
 from app.models.user import User
 from app.models.tenant import Area
 from app.models.workflow import (
@@ -28,7 +26,6 @@ from app.models.workflow import (
     WorkflowTemplate,
 )
 from pydantic import ValidationError
-
 from app.schemas.workflow import (
     SignatureAction,
     WorkflowDispatch,
@@ -43,7 +40,6 @@ from app.services.document import DocumentService
 from app.services.audit import AuditService
 from app.services.icp import SignatureResult
 from app.services.storage import get_storage, normalize_storage_path
-
 
 class WorkflowService:
     MAX_SIGNATURE_IMAGE_BYTES = 2 * 1024 * 1024  # 2 MB
@@ -63,6 +59,19 @@ class WorkflowService:
     def __init__(self, session: Session, notification_service: NotificationService | None = None) -> None:
         self.session = session
         self.notification_service = notification_service
+        self.report_service = ReportService(session)
+
+    def _resolve_company_name(self, tenant_id: UUID | None) -> str | None:
+        if not tenant_id:
+            return None
+        try:
+            tenant_uuid = UUID(str(tenant_id))
+        except (TypeError, ValueError):
+            return None
+        customer = self.session.exec(select(Customer).where(Customer.tenant_id == tenant_uuid)).first()
+        if customer:
+            return customer.trade_name or customer.corporate_name
+        return None
 
     @staticmethod
     def _normalize_cpf_value(value: str | None) -> str | None:
@@ -107,7 +116,6 @@ class WorkflowService:
     def _prepare_template_config(self, steps: list[WorkflowStepConfig]) -> str:
         if not steps:
             raise ValueError("Template must contain at least one step")
-
         normalized: list[dict[str, object]] = []
         seen_orders: set[int] = set()
         for step in sorted(steps, key=lambda item: item.order):
@@ -126,7 +134,6 @@ class WorkflowService:
         area = self.session.get(Area, area_id)
         if not area or area.tenant_id != tenant_id:
             raise ValueError("Area not found for tenant")
-
         config_json = self._prepare_template_config(payload.steps)
         template = WorkflowTemplate(
             tenant_id=tenant_id,
@@ -165,7 +172,6 @@ class WorkflowService:
         template = self.get_template(template_id)
         if not template or template.tenant_id != tenant_id:
             raise ValueError("Template not found for tenant")
-
         if payload.name is not None:
             template.name = payload.name
         if payload.description is not None:
@@ -174,7 +180,6 @@ class WorkflowService:
             template.config_json = self._prepare_template_config(payload.steps)
         if payload.is_active is not None:
             template.is_active = payload.is_active
-
         self.session.add(template)
         self.session.commit()
         self.session.refresh(template)
@@ -201,7 +206,6 @@ class WorkflowService:
         source = self.get_template(template_id)
         if not source or source.tenant_id != tenant_id:
             raise ValueError("Template not found for tenant")
-
         new_template = WorkflowTemplate(
             tenant_id=tenant_id,
             area_id=area_id or source.area_id,
@@ -231,18 +235,17 @@ class WorkflowService:
     def _load_template_steps(self, template: WorkflowTemplate) -> list[WorkflowStepConfig]:
         try:
             raw_config = json.loads(template.config_json)
-        except json.JSONDecodeError as exc:  # pragma: no cover
+        except json.JSONDecodeError as exc:
             raise ValueError("Invalid template configuration") from exc
-        if not isinstance(raw_config, list):  # pragma: no cover
+        if not isinstance(raw_config, list):
             raise ValueError("Template configuration must be a list")
-
         steps: list[WorkflowStepConfig] = []
         for item in raw_config:
-            if not isinstance(item, dict):  # pragma: no cover
+            if not isinstance(item, dict):
                 raise ValueError("Malformed template step")
             try:
                 steps.append(WorkflowStepConfig.model_validate(item))
-            except ValidationError as exc:  # pragma: no cover
+            except ValidationError as exc:
                 raise ValueError("Invalid template step configuration") from exc
         return sorted(steps, key=lambda cfg: cfg.order)
 
@@ -253,12 +256,10 @@ class WorkflowService:
     ) -> list[tuple[DocumentParty, WorkflowStepConfig]]:
         if not document_parties:
             raise ValueError("No parties configured for document")
-
         parties_by_role: dict[str, list[DocumentParty]] = {}
         for party in sorted(document_parties, key=lambda item: item.order_index):
             role_key = (party.role or "").strip().lower()
             parties_by_role.setdefault(role_key, []).append(party)
-
         usage: dict[str, int] = {}
         assignments: list[tuple[DocumentParty, WorkflowStepConfig]] = []
         for step in steps:
@@ -268,26 +269,101 @@ class WorkflowService:
                 raise ValueError(f"Template requires party with role '{role_key}'")
             index = usage.get(role_key, 0)
             if index >= len(candidates):
-                raise ValueError(
-                    f"Template requires more parties with role '{role_key}' than configured"
-                )
+                raise ValueError(f"Template requires more parties with role '{role_key}' than configured")
             party = candidates[index]
             usage[role_key] = index + 1
             assignments.append((party, step))
-
         return assignments
 
-    # Token management -----------------------------------------------------
+    def _load_document_parties(self, document: Document) -> list[DocumentParty]:
+        parties = self.session.exec(
+            select(DocumentParty)
+            .where(DocumentParty.document_id == document.id)
+            .order_by(DocumentParty.order_index)
+        ).all()
+        if not parties:
+            raise ValueError("No parties configured for document")
+        return parties
+
+    def _normalize_notification_channels(self, parties: list[DocumentParty]) -> dict[UUID, str]:
+        contact_issues: list[str] = []
+        normalized_channels: dict[UUID, str] = {}
+        for party in parties:
+            channel = (party.notification_channel or "email").lower()
+            if channel not in {"email", "sms"}:
+                channel = "email"
+            normalized_channels[party.id] = channel
+            if channel == "email" and not (party.email and party.email.strip()):
+                contact_issues.append(f"{party.full_name or party.role or party.id}: e-mail obrigatorio.")
+            if channel == "sms" and not (party.phone_number and party.phone_number.strip()):
+                contact_issues.append(f"{party.full_name or party.role or party.id}: telefone obrigatorio para SMS.")
+        if contact_issues:
+            raise ValueError(f"Contatos pendentes antes do envio: {' '.join(contact_issues)}")
+        return normalized_channels
+
+    def _build_step_assignments(
+        self,
+        document: Document,
+        parties: list[DocumentParty],
+        payload: WorkflowDispatch,
+    ) -> list[tuple[DocumentParty, WorkflowStepConfig]]:
+        if payload.template_id and payload.steps:
+            raise ValueError("Escolha entre usar um template ou definir o fluxo manualmente, nao ambos.")
+        if payload.template_id:
+            template = self.get_template(payload.template_id)
+            if not template or template.tenant_id != document.tenant_id:
+                raise ValueError("Template not found for tenant")
+            config_steps = self._load_template_steps(template)
+            return self._match_template_parties(parties, config_steps)
+        if payload.steps:
+            sorted_steps = sorted(payload.steps, key=lambda item: item.order)
+            return self._match_template_parties(parties, sorted_steps)
+        return [
+            (
+                party,
+                WorkflowStepConfig(
+                    order=index,
+                    role=(party.role or "").strip().lower(),
+                    action="sign",
+                    execution="sequential",
+                ),
+            )
+            for index, party in enumerate(parties, start=1)
+        ]
+
+    def _list_group_documents(self, group_id: UUID) -> list[Document]:
+        return self.session.exec(
+            select(Document)
+            .where(Document.group_id == group_id)
+            .order_by(Document.created_at.asc())
+        ).all()
+
+    def _clone_parties_to_document(
+        self,
+        *,
+        source_parties: list[DocumentParty],
+        target_document: Document,
+    ) -> None:
+        existing = self.session.exec(
+            select(DocumentParty).where(DocumentParty.document_id == target_document.id)
+        ).all()
+        for party in existing:
+            self.session.delete(party)
+        self.session.flush()
+        for source in source_parties:
+            data = source.model_dump(exclude={"id", "created_at", "updated_at", "document_id"})
+            data["document_id"] = target_document.id
+            clone = DocumentParty(**data)
+            self.session.add(clone)
+        self.session.flush()
+
     def issue_signature_token(self, request_id: UUID) -> str:
         request = self.session.get(SignatureRequest, UUID(str(request_id)))
         if not request:
             raise ValueError("Request not found")
-
         token = secrets.token_urlsafe(32)
-        # Always refresh to recover plain token for notifications
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         request.token_hash = token_hash
-        # Tokens públicos não expiram automaticamente (só mudam quando reenviados)
         request.token_expires_at = None
         if not request.token_channel:
             request.token_channel = "email"
@@ -299,7 +375,6 @@ class WorkflowService:
         normalized_token = (token or "").strip()
         if not normalized_token:
             raise ValueError("Invalid token")
-
         token_hash = hashlib.sha256(normalized_token.encode()).hexdigest()
         request = self.session.exec(
             select(SignatureRequest).where(SignatureRequest.token_hash == token_hash)
@@ -328,69 +403,23 @@ class WorkflowService:
     ) -> WorkflowInstance:
         tenant_uuid = UUID(str(tenant_id))
         document_uuid = UUID(str(document_id))
-
         document = self._get_document(tenant_uuid, document_uuid)
+        if document.status == DocumentStatus.DELETED:
+            raise ValueError("Documento está na lixeira e não pode iniciar workflow")
         if document.status not in {DocumentStatus.IN_REVIEW, DocumentStatus.DRAFT}:
             raise ValueError("Document already in workflow")
-
-        if payload.template_id and payload.steps:
-            raise ValueError("Escolha entre usar um template ou definir o fluxo manualmente, nao ambos.")
-
-        party_rows: list[DocumentParty] = self.session.exec(
-            select(DocumentParty)
-            .where(DocumentParty.document_id == document.id)
-            .order_by(DocumentParty.order_index)
-        ).all()
-        if not party_rows:
-            raise ValueError("No parties configured for document")
-
-        contact_issues: list[str] = []
-        normalized_channels: dict[UUID, str] = {}
-        for party in party_rows:
-            channel = (party.notification_channel or "email").lower()
-            if channel not in {"email", "sms"}:
-                channel = "email"
-            normalized_channels[party.id] = channel
-            if channel == "email" and not (party.email and party.email.strip()):
-                contact_issues.append(f"{party.full_name or party.role or party.id}: e-mail obrigatÃÂÃÂ³rio.")
-            if channel == "sms" and not (party.phone_number and party.phone_number.strip()):
-                contact_issues.append(f"{party.full_name or party.role or party.id}: telefone obrigatÃÂÃÂ³rio para SMS.")
-        if contact_issues:
-            joined = " ".join(contact_issues)
-            raise ValueError(f"Contatos pendentes antes do envio: {joined}")
-
-        if payload.template_id:
-            template = self.get_template(payload.template_id)
-            if not template or template.tenant_id != tenant_uuid:
-                raise ValueError("Template not found for tenant")
-            config_steps = self._load_template_steps(template)
-            parties = self._match_template_parties(party_rows, config_steps)
-        elif payload.steps:
-            sorted_steps = sorted(payload.steps, key=lambda item: item.order)
-            parties = self._match_template_parties(party_rows, sorted_steps)
-        else:
-            parties = [
-                (
-                    party,
-                    WorkflowStepConfig(
-                        order=index,
-                        role=(party.role or "").strip().lower(),
-                        action="sign",
-                        execution="sequential",
-                    ),
-                )
-                for index, party in enumerate(party_rows, start=1)
-            ]
-
+        party_rows = self._load_document_parties(document)
+        normalized_channels = self._normalize_notification_channels(party_rows)
+        parties = self._build_step_assignments(document, party_rows, payload)
         workflow = WorkflowInstance(
             document_id=document.id,
+            group_id=document.group_id,
             template_id=payload.template_id,
             status=WorkflowStatus.IN_PROGRESS,
             started_at=datetime.utcnow(),
         )
         self.session.add(workflow)
         self.session.flush()
-
         for index, (party, cfg) in enumerate(parties, start=1):
             deadline_at = None
             if cfg.deadline_hours:
@@ -407,26 +436,95 @@ class WorkflowService:
             )
             self.session.add(step)
             self.session.flush()
-
-            channel = normalized_channels.get(party.id)
-            if not channel:
-                channel = (party.notification_channel or "email").lower()
-                if channel not in {"email", "sms"}:
-                    channel = "email"
-
+            channel = normalized_channels.get(party.id, "email")
             request = SignatureRequest(
                 workflow_step_id=step.id,
+                document_id=document.id,
+                group_id=document.group_id,
                 token_channel=channel,
                 status=SignatureRequestStatus.PENDING,
             )
             self.session.add(request)
-
         document.status = DocumentStatus.IN_PROGRESS
         self._advance_workflow(workflow, document)
         self.session.add(document)
         self.session.commit()
         self.session.refresh(workflow)
         return workflow
+
+    def dispatch_group_workflow(
+        self,
+        tenant_id: str | UUID,
+        group_id: str | UUID,
+        payload: WorkflowDispatch,
+    ) -> tuple[DocumentGroup, list[WorkflowInstance]]:
+        tenant_uuid = UUID(str(tenant_id))
+        group = self.session.get(DocumentGroup, UUID(str(group_id)))
+        if not group or group.tenant_id != tenant_uuid:
+            raise ValueError("Grupo nao encontrado para o tenant.")
+        documents = self._list_group_documents(group.id)
+        if not documents:
+            raise ValueError("O grupo nao possui documentos para iniciar o fluxo.")
+        deleted = [doc for doc in documents if doc.status == DocumentStatus.DELETED]
+        if deleted:
+            names = ", ".join(doc.name for doc in deleted)
+            raise ValueError(f"Documentos na lixeira não podem iniciar workflow: {names}")
+        invalid = [doc for doc in documents if doc.status not in {DocumentStatus.IN_REVIEW, DocumentStatus.DRAFT}]
+        if invalid:
+            names = ", ".join(doc.name for doc in invalid)
+            raise ValueError(f"Os seguintes documentos nao podem iniciar o fluxo: {names}.")
+        primary_document = documents[0]
+        party_rows = self._load_document_parties(primary_document)
+        normalized_channels = self._normalize_notification_channels(party_rows)
+        parties = self._build_step_assignments(primary_document, party_rows, payload)
+        for document in documents:
+            if document.id == primary_document.id:
+                continue
+            self._clone_parties_to_document(source_parties=party_rows, target_document=document)
+        workflow = WorkflowInstance(
+            document_id=primary_document.id,
+            group_id=group.id,
+            template_id=payload.template_id,
+            status=WorkflowStatus.IN_PROGRESS,
+            started_at=datetime.utcnow(),
+            is_group_workflow=True,
+        )
+        self.session.add(workflow)
+        self.session.flush()
+        for index, (party, cfg) in enumerate(parties, start=1):
+            deadline_at = None
+            if cfg.deadline_hours:
+                deadline_at = datetime.utcnow() + timedelta(hours=cfg.deadline_hours)
+            phase_index = getattr(cfg, "order", None) or index
+            step = WorkflowStep(
+                workflow_id=workflow.id,
+                party_id=party.id,
+                step_index=index,
+                phase_index=phase_index,
+                action=cfg.action,
+                execution_type=cfg.execution,
+                deadline_at=deadline_at,
+            )
+            self.session.add(step)
+            self.session.flush()
+            for document in documents:
+                channel = normalized_channels.get(party.id, "email")
+                request = SignatureRequest(
+                    workflow_step_id=step.id,
+                    document_id=document.id,
+                    group_id=group.id,
+                    token_channel=channel,
+                    status=SignatureRequestStatus.PENDING,
+                )
+                self.session.add(request)
+        for document in documents:
+            document.status = DocumentStatus.IN_PROGRESS
+            self.session.add(document)
+        self._advance_workflow(workflow, primary_document)
+        self.session.commit()
+        self.session.refresh(group)
+        self.session.refresh(workflow)
+        return group, [workflow]
 
     def _apply_signature_action(
         self,
@@ -440,17 +538,13 @@ class WorkflowService:
     ) -> SignatureRequest:
         if request.status not in {SignatureRequestStatus.PENDING, SignatureRequestStatus.SENT}:
             raise ValueError("Request already closed")
-
         step = self.session.get(WorkflowStep, request.workflow_step_id)
         if not step:
             raise ValueError("Workflow step missing")
-
         party = step.party or self.session.get(DocumentParty, step.party_id)
         now = datetime.utcnow()
-
         signature_entry: Signature | None = None
         evidence_log: Dict[str, Any] | None = None
-
         if payload.action == "sign":
             field_meta = self._collect_field_metadata(document, party)
             typed_required = field_meta["typed_name_required"]
@@ -465,22 +559,13 @@ class WorkflowService:
             }
             provided_field_ids: set[str] = set()
             field_value_capture: Dict[str, Dict[str, Any]] = {}
-
             if typed_required and party and not party.allow_typed_name:
                 raise ValueError("Configuração do signatário não permite nome digitado obrigatório.")
             if image_required and party and not party.allow_signature_image:
                 raise ValueError("Configuração do signatário não permite imagem obrigatória.")
-
-            # ----------------------------------------------------------------------
-            # Validação condicional: apenas para assinaturas eletrônicas simples.
-            # Para assinaturas digitais ICP-Brasil → NÃO validar nada aqui.
-            # ----------------------------------------------------------------------
             if request.token_hash and payload.token:
-
-                # Detecta assinatura digital ICP-Brasil corretamente
                 signature_type_label = (payload.signature_type or "").strip().lower()
                 method = (getattr(party, "signature_method", "") or "").strip().lower()
-
                 is_digital = (
                     signature_type_label == "digital"
                     or "digital" in signature_type_label
@@ -494,18 +579,14 @@ class WorkflowService:
                         "icp-brasil",
                     }
                 )
-
-                # Se for assinatura digital → pular toda validação de e-mail/telefone/nome
                 if is_digital:
-                    pass  # ← nada é exigido
+                    pass
                 else:
-                    # 🔒 Exige confirmação apenas para assinaturas ELETRÔNICAS simplificadas
                     if party and party.require_email and getattr(party, "email", None):
                         expected_email = party.email.strip().lower()
                         provided_email = (payload.confirm_email or "").strip().lower()
                         if not provided_email or expected_email != provided_email:
                             raise ValueError("Confirme o e-mail cadastrado para continuar.")
-
                     if party and party.require_phone and getattr(party, "phone_number", None):
                         digits = "".join(ch for ch in party.phone_number if ch.isdigit())
                         expected_target = digits[-4:] if len(digits) > 4 else digits
@@ -518,7 +599,6 @@ class WorkflowService:
                                     else "Informe o telefone cadastrado utilizando apenas números."
                                 )
                                 raise ValueError(message)
-
             typed_name_value = payload.typed_name.strip() if payload.typed_name else None
             if typed_name_value:
                 if party and not party.allow_typed_name:
@@ -530,14 +610,12 @@ class WorkflowService:
                 typed_name_hash = None
                 if typed_required:
                     raise ValueError("O nome digitado é obrigatório para esta assinatura.")
-
             consent_given = bool(payload.consent)
             consent_text = payload.consent_text.strip() if payload.consent_text else None
             if consent_text and len(consent_text) > 2000:
                 consent_text = consent_text[:2000]
             consent_version = payload.consent_version.strip() if payload.consent_version else None
             consent_given_at = now if consent_given else None
-
             document_service = DocumentService(self.session)
             if payload.fields:
                 for field_payload in payload.fields:
@@ -557,8 +635,6 @@ class WorkflowService:
                     if normalized:
                         provided_field_ids.add(field_id)
                         field_value_capture[field_id] = normalized
-
-            # Auto-assign typed name to first available typed field if not explicitly provided
             if typed_name_value:
                 for field in role_fields:
                     field_key = str(field.id)
@@ -573,8 +649,6 @@ class WorkflowService:
                         provided_field_ids.add(field_key)
                         field_value_capture[field_key] = normalized
                     break
-
-            # Auto-assign signature image if provided but no explicit field payload
             top_signature_payload: dict[str, Any] | None = None
             if payload.signature_image:
                 top_signature_payload = {
@@ -595,7 +669,6 @@ class WorkflowService:
                         provided_field_ids.add(field_key)
                         field_value_capture[field_key] = normalized
                     break
-
             if required_field_ids:
                 missing_required = [
                     field_lookup[field_id].label or field_lookup[field_id].field_type
@@ -605,7 +678,6 @@ class WorkflowService:
                 if missing_required:
                     targets = ", ".join(missing_required)
                     raise ValueError(f"Preencha os campos obrigatórios: {targets}")
-
             image_payload = payload.signature_image
             image_meta: Dict[str, Any] | None = None
             if image_payload:
@@ -651,7 +723,6 @@ class WorkflowService:
                 }
             elif image_required:
                 raise ValueError("Imagem de assinatura é obrigatória para este signatário.")
-
             certificate_subject = (payload.certificate_subject or "").strip() or None
             certificate_issuer = (payload.certificate_issuer or "").strip() or None
             certificate_serial = (payload.certificate_serial or "").strip() or None
@@ -659,7 +730,6 @@ class WorkflowService:
             signature_protocol = (payload.signature_protocol or "").strip() or None
             signature_type_label = (payload.signature_type or "").strip() or None
             signature_authentication = (payload.signature_authentication or "").strip() or None
-
             signed_pdf_raw = payload.signed_pdf or None
             signed_pdf_meta: Dict[str, Any] | None = None
             if signed_pdf_raw:
@@ -698,7 +768,6 @@ class WorkflowService:
                     "artifact_id": artifact.id,
                     "path": storage_path,
                 }
-
             signature_type_indicates_certificate = bool(
                 signature_type_label
                 and any(marker in signature_type_label for marker in ("digital", "certificado", "icp"))
@@ -707,7 +776,6 @@ class WorkflowService:
             signature_auth_indicates_certificate = bool(
                 signature_auth_value and any(marker in signature_auth_value for marker in ("digital", "certificado", "icp"))
             )
-
             certificate_used = any(
                 [
                     certificate_subject,
@@ -732,7 +800,6 @@ class WorkflowService:
                 if certificate_used
                 else None
             )
-
             evidence_options: Dict[str, Any] = {
                 "typed_name": bool(typed_name_value),
                 "signature_image": bool(image_payload),
@@ -759,7 +826,6 @@ class WorkflowService:
             if signed_pdf_meta:
                 evidence_options["signed_pdf_artifact_id"] = str(signed_pdf_meta["artifact_id"])
                 evidence_options["signed_pdf_sha256"] = signed_pdf_meta["sha256"]
-
             signature_method = (
                 getattr(party, "signature_method", None).strip().lower()
                 if party and getattr(party, "signature_method", None)
@@ -782,7 +848,6 @@ class WorkflowService:
                         raise ValueError("O CPF informado não corresponde ao participante cadastrado.")
             if signature_method == "electronic" and certificate_used:
                 raise ValueError("Esta assinatura deve ser realizada de forma eletrônica.")
-
             signature_entry = Signature(
                 signature_request_id=request.id,
                 signature_type=SignatureType.DIGITAL if certificate_used else SignatureType.ELECTRONIC,
@@ -813,7 +878,6 @@ class WorkflowService:
                 party=party,
                 signature=signature_entry,
             )
-
             evidence_log = {
                 "signature_id": str(signature_entry.id),
                 "request_id": str(request.id),
@@ -857,7 +921,6 @@ class WorkflowService:
                     evidence_log["consent_given_at"] = consent_given_at.isoformat()
             if field_value_capture:
                 evidence_log["field_signatures"] = list(field_value_capture.keys())
-
             request.status = SignatureRequestStatus.SIGNED
             step.completed_at = now
         elif payload.action == "refuse":
@@ -877,16 +940,13 @@ class WorkflowService:
             step.completed_at = now
         else:
             raise ValueError("Unknown action")
-
         request.token_expires_at = None
-
         self.session.add(request)
         self._advance_workflow(workflow, document)
         self.session.commit()
         self.session.refresh(request)
         self.session.refresh(workflow)
         self.session.refresh(document)
-
         if evidence_log:
             audit_service = AuditService(self.session)
             audit_service.record_event(
@@ -898,14 +958,13 @@ class WorkflowService:
                 user_agent=user_agent,
                 details={key: value for key, value in evidence_log.items() if value is not None},
             )
-
         if workflow.status == WorkflowStatus.COMPLETED and document.status == DocumentStatus.COMPLETED:
             document_service = DocumentService(self.session)
             audit_service = AuditService(self.session)
             signature_result: SignatureResult | None = None
             try:
                 final_version, _, signature_result = document_service.ensure_final_signed_version(document)
-            except Exception as exc:  # pragma: no cover - robustness
+            except Exception as exc:
                 print(f"[ERRO] Falha ao gerar versão final: {exc}")
                 audit_service.record_event(
                     event_type="document_sign_error",
@@ -945,7 +1004,6 @@ class WorkflowService:
                             document_id=document.id,
                             details={"warning": warning},
                         )
-
             existing_artifact = self.session.exec(
                 select(AuditArtifact)
                 .where(AuditArtifact.document_id == document.id)
@@ -963,7 +1021,6 @@ class WorkflowService:
                     .where(AuditArtifact.artifact_type.like("final_report%"))
                     .where(AuditArtifact.id != report_artifact.id)
                 ).all()
-
             if self.notification_service and report_artifact:
                 parties = document_service.list_parties(document)
                 attachments = [final_version.storage_path, report_artifact.storage_path]
@@ -979,7 +1036,6 @@ class WorkflowService:
                     attachments=attachments,
                     extra_recipients=extra_emails or None,
                 )
-
         return request
 
     def record_signature_action(
@@ -993,19 +1049,15 @@ class WorkflowService:
         request = self.session.get(SignatureRequest, UUID(str(request_id)))
         if not request:
             raise ValueError("Request not found")
-
         step = self.session.get(WorkflowStep, request.workflow_step_id)
         if not step:
             raise ValueError("Workflow step missing")
-
         workflow = self.session.get(WorkflowInstance, step.workflow_id)
         if not workflow:
             raise ValueError("Workflow missing")
-
         document = self.session.get(Document, workflow.document_id)
         if not document or document.tenant_id != UUID(str(tenant_id)):
             raise ValueError("Invalid tenant")
-
         return self._apply_signature_action(
             request,
             workflow,
@@ -1025,7 +1077,6 @@ class WorkflowService:
         recipient_id = getattr(document, "created_by_id", None)
         if not recipient_id:
             return
-
         payload = {
             "document_name": document.name,
             "signer_name": getattr(party, "full_name", None),
@@ -1050,11 +1101,9 @@ class WorkflowService:
             .where(WorkflowStep.workflow_id == workflow.id)
             .order_by(WorkflowStep.step_index)
         ).all()
-
         if workflow.status == WorkflowStatus.REJECTED:
             self.session.add(workflow)
             return
-
         if all(step.completed_at for step in steps):
             workflow.status = WorkflowStatus.COMPLETED
             workflow.completed_at = datetime.utcnow()
@@ -1062,7 +1111,6 @@ class WorkflowService:
             self.session.add(workflow)
             self.session.add(document)
             return
-
         now = datetime.utcnow()
         for step in steps:
             if step.completed_at:
@@ -1076,14 +1124,17 @@ class WorkflowService:
                     token = self.issue_signature_token(request.id)
                     self.session.add(request)
                     if self.notification_service and (step.party or step.party_id):
-                        party = step.party or self.session.get(DocumentParty, step.party_id)  # type: ignore[arg-type]
+                        party = step.party or self.session.get(DocumentParty, step.party_id)
                         if party:
+                            request_doc = self.session.get(Document, request.document_id)
+                            requester_name = self._resolve_company_name(getattr(request_doc, "tenant_id", None)) if request_doc else None
                             self.notification_service.notify_signature_request(
                                 request=request,
                                 party=party,
-                                document=document,
+                                document=request_doc,
                                 token=token,
                                 step=step,
+                                requester_name=requester_name,
                             )
             break
 
@@ -1097,7 +1148,8 @@ class WorkflowService:
         tenant_uuid = UUID(str(tenant_id))
         document_uuid = UUID(str(document_id))
         document = self._get_document(tenant_uuid, document_uuid)
-
+        if document.status == DocumentStatus.DELETED:
+            raise ValueError("Documento está na lixeira e não pode receber notificações")
         workflow = (
             self.session.exec(
                 select(WorkflowInstance)
@@ -1107,7 +1159,6 @@ class WorkflowService:
         )
         if not workflow:
             raise ValueError("Workflow not found for document")
-
         steps = self.session.exec(
             select(WorkflowStep)
             .where(WorkflowStep.workflow_id == workflow.id)
@@ -1115,10 +1166,8 @@ class WorkflowService:
         ).all()
         if not steps:
             raise ValueError("No workflow steps to resend")
-
         if not self.notification_service:
             raise ValueError("Notification service is not configured")
-
         notified = 0
         for step in steps:
             requests = self.session.exec(
@@ -1129,17 +1178,19 @@ class WorkflowService:
                     token = self.issue_signature_token(request.id)
                     request.status = SignatureRequestStatus.SENT
                     self.session.add(request)
-                    party = step.party or self.session.get(DocumentParty, step.party_id)  # type: ignore[arg-type]
+                    party = step.party or self.session.get(DocumentParty, step.party_id)
                     if party:
+                        request_doc = self.session.get(Document, request.document_id)
+                        requester_name = self._resolve_company_name(getattr(request_doc, "tenant_id", None)) if request_doc else None
                         self.notification_service.notify_signature_request(
                             request=request,
                             party=party,
-                            document=document,
+                            document=request_doc,
                             token=token,
                             step=step,
+                            requester_name=requester_name,
                         )
                         notified += 1
-
         self.session.commit()
         return notified
 
@@ -1190,14 +1241,14 @@ class WorkflowService:
     def _decode_signature_image(cls, payload: str) -> Tuple[bytes, str | None]:
         data = (payload or "").strip()
         if not data:
-            raise ValueError("Imagem de assinatura invÃÂÃÂ¡lida.")
+            raise ValueError("Imagem de assinatura inválida.")
         mime: str | None = None
         encoded = data
         if data.startswith("data:"):
             try:
                 header, encoded = data.split(",", 1)
-            except ValueError as exc:  # pragma: no cover - defensive
-                raise ValueError("Imagem de assinatura em formato invÃÂÃÂ¡lido.") from exc
+            except ValueError as exc:
+                raise ValueError("Imagem de assinatura em formato inválido.") from exc
             if ";base64" not in header:
                 raise ValueError("Imagem de assinatura deve estar codificada em base64.")
             if ":" in header:
@@ -1205,7 +1256,7 @@ class WorkflowService:
         try:
             content = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError) as exc:
-            raise ValueError("Imagem de assinatura invÃÂÃÂ¡lida.") from exc
+            raise ValueError("Imagem de assinatura inválida.") from exc
         return content, mime
 
     @classmethod
@@ -1218,7 +1269,6 @@ class WorkflowService:
             base = f"{base}{extension}"
         return base
 
-    # Public signature flow -----------------------------------------------
     def get_public_signature(self, token: str) -> dict[str, object]:
         request = self._find_request_by_token(token)
         step = self.session.get(WorkflowStep, request.workflow_step_id)
@@ -1227,9 +1277,11 @@ class WorkflowService:
         workflow = self.session.get(WorkflowInstance, step.workflow_id)
         if not workflow:
             raise ValueError("Workflow missing")
-        document = self.session.get(Document, workflow.document_id)
+        document = self.session.get(Document, request.document_id)
         if not document:
             raise ValueError("Document missing")
+        if document.status == DocumentStatus.DELETED:
+            raise ValueError("Documento está na lixeira e não pode ser assinado")
         self.session.refresh(document)
         party = step.party or self.session.get(DocumentParty, step.party_id)
         signature = self.session.exec(
@@ -1262,7 +1314,8 @@ class WorkflowService:
         document = self.session.get(Document, workflow.document_id)
         if not document:
             raise ValueError("Document missing")
-
+        if document.status == DocumentStatus.DELETED:
+            raise ValueError("Documento está na lixeira e não pode ser assinado")
         return self._apply_signature_action(
             request,
             workflow,

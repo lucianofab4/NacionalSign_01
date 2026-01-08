@@ -123,9 +123,13 @@ export default function UsersPage({ currentProfile, currentAreaId }: UsersPagePr
       toast.success('Usuário cadastrado com sucesso.');
       setForm(defaultCreateForm(isAdmin ? form.profile : 'user', isAdmin ? form.default_area_id : (currentAreaId ?? null)));
       void loadAll();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error('Erro ao criar usuário.');
+      const detail =
+        typeof error?.response?.data?.detail === 'string'
+          ? error.response.data.detail
+          : 'Erro ao criar usuário.';
+      toast.error(detail);
     } finally {
       setCreating(false);
     }

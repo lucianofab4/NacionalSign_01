@@ -49,6 +49,7 @@ def _build_workflow_service(session: Session) -> WorkflowService:
         audit_service,
         public_base_url=settings.resolved_public_app_url(),
         agent_download_url=settings.signing_agent_download_url,
+        session=session,
     )
     notification_service.apply_email_settings(settings)
     if settings.twilio_account_sid and settings.twilio_auth_token:

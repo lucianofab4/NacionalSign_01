@@ -77,7 +77,7 @@
                 <p style="font-size:14px;color:#64748b;">Defina os participantes e ações. O campo "Papel" deve corresponder à função cadastrada no documento.</p>
                 <div id="steps-container"></div>
                 <button type="button" class="btn-secondary" id="add-step">Adicionar etapa</button>
-                <input type="hidden" name="steps_json" id="steps_json" value='[{"order":1,"role":"signer","action":"sign","execution":"sequential"}]' />
+                <input type="hidden" name="steps_json" id="steps_json" value='[{"order":1,"role":"signer","action":"sign","execution":"sequential","notification_channel":"email","signature_method":"electronic","representative_name":null,"representative_cpf":null,"company_name":null,"company_tax_id":null,"representative_email":null,"representative_phone":null}]' />
                 <button type="submit" class="btn-primary">Criar template</button>
             </form>
         </div>
@@ -165,6 +165,13 @@
                     const execution = row.querySelector('[data-field="execution"]').value;
                     const deadlineRaw = row.querySelector('[data-field="deadline"]').value.trim();
                     const channel = row.querySelector('[data-field="channel"]').value;
+                    const signatureMethod = row.querySelector('[data-field="signature_method"]').value;
+                    const representativeName = row.querySelector('[data-field="representative_name"]').value.trim();
+                    const representativeCpf = row.querySelector('[data-field="representative_cpf"]').value.replace(/\D/g, '');
+                    const companyName = row.querySelector('[data-field="company_name"]').value.trim();
+                    const companyTaxId = row.querySelector('[data-field="company_tax_id"]').value.replace(/\D/g, '');
+                    const representativeEmail = row.querySelector('[data-field="representative_email"]').value.trim().toLowerCase();
+                    const representativePhone = row.querySelector('[data-field="representative_phone"]').value.replace(/\D/g, '');
                     const deadline = deadlineRaw ? parseInt(deadlineRaw, 10) : null;
                     steps.push({
                         order: index + 1,
@@ -173,6 +180,13 @@
                         execution,
                         deadline_hours: deadline,
                         notification_channel: channel,
+                        signature_method: signatureMethod || 'electronic',
+                        representative_name: representativeName || null,
+                        representative_cpf: representativeCpf || null,
+                        company_name: companyName || null,
+                        company_tax_id: companyTaxId || null,
+                        representative_email: representativeEmail || null,
+                        representative_phone: representativePhone || null,
                     });
                 });
                 stepsInput.value = JSON.stringify(steps);
@@ -209,7 +223,40 @@
                                 <option value="sms" ${(data && data.notification_channel === 'sms') ? 'selected' : ''}>SMS</option>
                             </select>
                         </div>
+                        <div style="flex:1 1 160px;">
+                            <label>Tipo de assinatura</label>
+                            <select data-field="signature_method">
+                                <option value="electronic" ${!data || data.signature_method !== 'digital' ? 'selected' : ''}>Eletrônica</option>
+                                <option value="digital" ${(data && data.signature_method === 'digital') ? 'selected' : ''}>Digital (ICP)</option>
+                            </select>
+                        </div>
                         <button type="button" class="btn-danger" data-action="remove">Remover</button>
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:12px;">
+                        <div style="flex:1 1 200px;">
+                            <label>Representante</label>
+                            <input data-field="representative_name" placeholder="Nome completo" value="${data?.representative_name || ''}" />
+                        </div>
+                        <div style="flex:1 1 160px;">
+                            <label>CPF do representante</label>
+                            <input data-field="representative_cpf" placeholder="Somente números" value="${data?.representative_cpf || ''}" />
+                        </div>
+                        <div style="flex:1 1 200px;">
+                            <label>Empresa</label>
+                            <input data-field="company_name" placeholder="Nome da empresa" value="${data?.company_name || ''}" />
+                        </div>
+                        <div style="flex:1 1 160px;">
+                            <label>CNPJ</label>
+                            <input data-field="company_tax_id" placeholder="Somente números" value="${data?.company_tax_id || ''}" />
+                        </div>
+                        <div style="flex:1 1 200px;">
+                            <label>Email do representante</label>
+                            <input data-field="representative_email" type="email" placeholder="contato@empresa.com" value="${data?.representative_email || ''}" />
+                        </div>
+                        <div style="flex:1 1 160px;">
+                            <label>Telefone do representante</label>
+                            <input data-field="representative_phone" placeholder="(11) 99999-0000" value="${data?.representative_phone || ''}" />
+                        </div>
                     </div>
                 `;
                 stepsContainer.appendChild(row);

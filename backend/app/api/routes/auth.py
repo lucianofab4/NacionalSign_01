@@ -26,11 +26,12 @@ def _services(session: Session) -> tuple[AuthService, AuditService]:
     return AuthService(session), AuditService(session)
 
 
-def _build_notification_service(audit_service: AuditService | None = None) -> NotificationService | None:
+def _build_notification_service(session: Session, audit_service: AuditService | None = None) -> NotificationService | None:
     service = NotificationService(
         audit_service=audit_service,
         public_base_url=settings.resolved_public_app_url(),
         agent_download_url=settings.signing_agent_download_url,
+        session=session,
     )
     service.apply_email_settings(settings)
     if not (service.sendgrid_config or service.email_config):
@@ -104,7 +105,7 @@ def forgot_password(
         # Avoid exposing whether the email exists
         return {"status": "ok"}
 
-    notifier = _build_notification_service(audit_service)
+    notifier = _build_notification_service(session, audit_service)
     if notifier:
         try:
             notifier.send_user_credentials_email(

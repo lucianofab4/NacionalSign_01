@@ -1,13 +1,87 @@
-﻿# NacionalSign
+﻿# 🚀 NacionalSign - Sistema de Assinatura Digital
 
-NacionalSign is a Brazilian SaaS platform for secure digital document signing, combining ICP-Brasil compliant digital signatures with modern electronic workflows. The goal is to deliver a frictionless experience for multi-company, multi-area environments while maintaining full legal validity (MP 2.200-2/2001) and LGPD compliance.
+Sistema completo para gerenciamento e assinatura digital de documentos com suporte a certificados ICP-Brasil.
 
-## Features
-- Multi-tenant support with isolated companies, areas, and permission scopes.
-- Document intake via PDF, DOCX, and images with automatic normalization.
-- Visual workflow builder to orchestrate sequential or parallel signing steps.
-- Support for ICP-Brasil digital signatures, authenticated electronic signatures, and token-based confirmations.
-- Immutable audit logging with timestamping, IP/device metadata, and public verification portal.
+## 🎯 Recursos Principais
+- ✅ **Assinatura Digital ICP-Brasil** - Certificados A1/A3 nativos
+- ✅ **Multi-tenant Completo** - Empresas e áreas isoladas
+- ✅ **Workflow Visual** - Templates arrastar-e-soltar
+- ✅ **Auditoria LGPD** - Logs imutáveis com timestamp
+- ✅ **Billing Automático** - Stripe, PagSeguro, planos
+- ✅ **API REST Completa** - Documentação automática
+- ✅ **Deploy Docker** - Produção em minutos
+
+## 🏗️ Stack Tecnológica
+- **Backend**: FastAPI + PostgreSQL + SQLModel
+- **Frontend**: React + TypeScript + Vite  
+- **Auth**: JWT + 2FA (TOTP)
+- **Storage**: S3/MinIO compatível
+- **Deploy**: Docker + Docker Compose
+- **Signing**: Agente C# para certificados locais
+
+## ⚡ Quick Start
+
+### 1. Clone e Configure
+```bash
+git clone https://github.com/seu-usuario/nacionalsign.git
+cd nacionalsign
+cp .env.example .env
+# ⚠️ EDITE .env com suas configurações
+```
+
+### 2. Docker (Recomendado)
+```bash
+docker-compose up -d
+# Sistema rodando em http://localhost:8000
+```
+
+### 3. Desenvolvimento Local
+```bash
+# Backend
+cd backend
+poetry install && poetry run uvicorn app.main:app --reload
+
+# Frontend  
+cd frontend
+npm install && npm run dev
+```
+
+## 🐳 Deploy Produção (DigitalOcean/VPS)
+
+```bash
+# 1. Na sua VM
+git clone seu-repositorio
+cd nacionalsign
+
+# 2. Configurar ambiente
+cp .env.example .env
+# Configure DATABASE_URL, SECRET_KEY, SMTP, etc.
+
+# 3. Subir produção
+docker-compose up -d
+
+# 4. SSL automático (opcional)
+# Configure nginx ou Caddy para HTTPS
+```
+
+## 🔧 Environment Variables Críticas
+
+```bash
+# Segurança (MUDE!)
+SECRET_KEY=sua-chave-super-secreta-aqui
+
+# Database Produção
+DATABASE_URL=postgresql://user:pass@localhost:5432/nacionalsign
+
+# Email Notificações
+SMTP_USERNAME=seu-email@gmail.com
+SMTP_PASSWORD=sua-app-password
+
+# Domínio Público
+PUBLIC_BASE_URL=https://seudominio.com
+```
+
+## 📚 Funcionalidades Detalhadas
 - SaaS billing, plan limits, and white-label customization per tenant.
 
 ## Architecture Overview

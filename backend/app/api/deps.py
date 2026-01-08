@@ -103,3 +103,15 @@ def require_roles(*roles: UserRole) -> Callable[[User], User]:
         return current_user
 
     return dependency
+
+
+def require_platform_admin(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    allowed_emails = {
+        (email or "").strip().lower()
+        for email in getattr(settings, "customer_admin_emails", []) or []
+        if email
+    }
+    current_email = (current_user.email or "").strip().lower()
+    if current_user.profile == UserRole.SUPER_ADMIN.value or current_email in allowed_emails:
+        return current_user
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")

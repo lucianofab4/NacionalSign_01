@@ -1,10 +1,55 @@
-# === PASTAS DE ARQUIVOS GERADOS (NUNCA SUBEM NO GIT) ===
-_storage/
+########################################
+# === PYTHON / BACKEND ===
+########################################
+
+# Virtual Environments
+.venv/
+venv/
+backend/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python build artifacts
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Poetry
+.poetry/
+poetry.toml
+
+########################################
+# === LOGS / TEMP ===
+########################################
+
+*.log
 log/
-dev.db
+backend/log/
 temp*.txt
 
-# === PASTAS DO AGENTE DE ASSINATURA (binários, debug) ===
+########################################
+# === DATABASE / STORAGE LOCAL ===
+########################################
+
+dev.db
+*.sqlite3
+_storage/
+
+########################################
+# === MIGRATIONS (APENAS CACHE) ===
+########################################
+
+backend/alembic/versions/__pycache__/
+
+########################################
+# === AGENTE DE ASSINATURA (BINÁRIOS) ===
+########################################
+
 backend/signing-agent-prototype/**/bin/
 backend/signing-agent-prototype/**/obj/
 backend/signing-agent-prototype/.vs/
@@ -13,10 +58,38 @@ backend/signing-agent-prototype/.vs/
 *.pdb
 *.exe
 
-# === OUTROS LIXOS COMUNS ===
-__pycache__/
-*.pyc
+########################################
+# === FRONTEND / NODE ===
+########################################
+
 node_modules/
 dist/
 build/
+.vite/
+
+########################################
+# === EDITORES / IDE ===
+########################################
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+########################################
+# === ENV / SECRETS ===
+########################################
+
+.env
+.env.*
 .env.local
+.env.production
+.env.development
+
+########################################
+# === SISTEMA OPERACIONAL ===
+########################################
+
+.DS_Store
+Thumbs.db
+desktop.ini

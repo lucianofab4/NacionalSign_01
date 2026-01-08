@@ -12,6 +12,7 @@ import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import PublicSignaturePage from './pages/PublicSignaturePage';
 import ReportsPage from './pages/ReportsPage';
+import AdminUsagePage from './pages/AdminUsagePage';
 
 import LoginForm from './components/LoginForm';
 import NotificationBell from './components/NotificationBell';
@@ -22,11 +23,13 @@ import {
   fetchUsage,
   fetchMe,
   fetchDashboardMetrics,
+  fetchMyCompanyProfile,
   requestPasswordReset,
   updateUserPassword,
   TOKEN_STORAGE_KEY,
   type Usage,
   type UserMe,
+  type CustomerSummary,
 } from './api';
 
 type ViewKey =
@@ -38,7 +41,8 @@ type ViewKey =
   | 'reports'
   | 'finance'
   | 'documents'
-  | 'customers';
+  | 'customers'
+  | 'ownerUsage';
 
 type MetricKey = 'pending_for_user' | 'to_sign' | 'signed_in_area' | 'pending_in_area';
 
@@ -78,6 +82,7 @@ const navItems: Array<{ key: ViewKey; label: string; icon: string }> = [
   { key: 'templates', label: 'Templates', icon: '🧩' },
   { key: 'reports', label: 'Relatórios', icon: '📊' },
   { key: 'finance', label: 'Financeiro da Empresa', icon: '💰' },
+  { key: 'ownerUsage', label: 'Painel do Dono', icon: '📋' },
 ];
 
 const rawCustomerAdminEnv =
@@ -122,6 +127,7 @@ function App() {
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const [passwordChanging, setPasswordChanging] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<CustomerSummary | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -159,6 +165,22 @@ function App() {
     };
     void loadUsage();
   }, [token, me?.id]);
+
+  useEffect(() => {
+    const loadCompany = async () => {
+      if (!token || !me?.tenant_id) {
+        setCompanyProfile(null);
+        return;
+      }
+      try {
+        const data = await fetchMyCompanyProfile();
+        setCompanyProfile(data);
+      } catch {
+        setCompanyProfile(null);
+      }
+    };
+    void loadCompany();
+  }, [token, me?.tenant_id]);
 
   useEffect(() => {
     const loadMe = async () => {
@@ -292,7 +314,12 @@ function App() {
   const showSidebar = Boolean(token);
   const isManagingDocument = Boolean(managingDocumentId);
   const activeView = isDocumentCreateRoute || isManagingDocument ? 'documents' : view;
-  const filteredNavItems = navItems.filter(item => item.key !== 'relationships' || canManageCustomers);
+  const filteredNavItems = navItems.filter(item => {
+    if (item.key === 'relationships' || item.key === 'ownerUsage') {
+      return canManageCustomers;
+    }
+    return true;
+  });
   const isCustomersView = activeView === 'customers' || activeView === 'relationships';
 
   const exitSpecialRoutes = () => {
@@ -302,7 +329,10 @@ function App() {
   };
 
   const changeView = (nextView: ViewKey) => {
-    if ((nextView === 'customers' || nextView === 'relationships') && !canManageCustomers) {
+    if (
+      (nextView === 'customers' || nextView === 'relationships' || nextView === 'ownerUsage') &&
+      !canManageCustomers
+    ) {
       toast.error('Acesso restrito aos proprietários.');
       return;
     }
@@ -314,7 +344,8 @@ function App() {
     if (
       !canManageCustomers &&
       (view === 'customers' ||
-        view === 'relationships')
+        view === 'relationships' ||
+        view === 'ownerUsage')
     ) {
       setView('dashboard');
     }
@@ -398,6 +429,8 @@ function App() {
             onTenantChange={setTenantId}
             areaId={areaId}
             onAreaChange={setAreaId}
+            currentProfile={normalizedProfile}
+            currentAreaId={me?.default_area_id ?? null}
           />
         );
       case 'documents':
@@ -415,10 +448,26 @@ function App() {
       case 'reports':
         return <ReportsPage />;
       case 'finance':
-        return <BillingPage />;
+        return <BillingPage canManagePlans={canManageCustomers} />;
+      case 'ownerUsage':
+        if (!canManageCustomers) {
+          return (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+              Painel restrito ao proprietário da plataforma.
+            </div>
+          );
+        }
+        return <AdminUsagePage />;
       case 'users':
         return <UsersPage currentProfile={normalizedProfile ?? 'user'} currentAreaId={me?.default_area_id} />;
       case 'settings':
+        if (!['owner', 'admin'].includes(normalizedProfile ?? '')) {
+          return (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+              Apenas administradores podem acessar esta seção.
+            </div>
+          );
+        }
         return (
           <SettingsPage
             currentUser={me}
@@ -437,12 +486,6 @@ function App() {
           );
         }
         return <CustomersPage />;
-      case 'reports':
-        return (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-            Relatórios em construção.
-          </div>
-        );
       case 'dashboard':
       default:
         return (
@@ -572,8 +615,13 @@ function App() {
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
       {showSidebar && (
         <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white px-4 py-6 shadow-sm lg:flex lg:sticky lg:top-0 lg:h-screen">
-          <div className="mb-8 flex items-center gap-2 px-2">
-            <span className="text-xl font-semibold text-slate-900">NacionalSign</span>
+          <div className="mb-8 px-2">
+            <span className="block text-xl font-semibold text-slate-900">NacionalSign</span>
+            {companyProfile ? (
+              <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                {companyProfile.trade_name || companyProfile.corporate_name}
+              </span>
+            ) : null}
           </div>
           <nav className="flex flex-1 flex-col gap-1">
             {filteredNavItems.map(item => (

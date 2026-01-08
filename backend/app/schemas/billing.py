@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 from app.schemas.common import IDModel, Timestamped
 
@@ -54,10 +54,12 @@ class UsageRead(BaseModel):
     period_end: datetime
     documents_used: int
     documents_quota: int | None
+    documents_signed: int | None = None
     users_used: int
     users_quota: int | None
     # Campos adicionais para facilitar UI
     documents_percent: float | None = None
+    documents_signed_percent: float | None = None
     users_percent: float | None = None
     near_limit: bool = False
     message: str | None = None
@@ -69,3 +71,29 @@ class WalletRead(BaseModel):
 
 class WalletCredit(BaseModel):
     amount_cents: int
+
+
+class TenantUsageAdminRow(UsageRead):
+    tenant_name: str
+    tenant_slug: str
+    plan_id: UUID | None = None
+    plan_name: str | None = None
+    subscription_status: str | None = None
+    limit_state: str
+    limit_ratio: float | None = None
+
+
+class AdminUsageResponse(BaseModel):
+    total: int
+    period_start: datetime
+    period_end: datetime
+    items: list[TenantUsageAdminRow]
+    alerts: list[TenantUsageAdminRow]
+
+
+class UsageAlertRequest(BaseModel):
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    emails: list[EmailStr] | None = None
+    threshold: float | None = None
+    only_exceeded: bool = False

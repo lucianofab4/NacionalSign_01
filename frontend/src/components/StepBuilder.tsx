@@ -9,6 +9,13 @@ export type BuilderStep = {
   execution: 'sequential' | 'parallel';
   deadline_hours: number | null;
   notification_channel: 'email' | 'sms';
+  signature_method: 'electronic' | 'digital';
+  representative_name: string;
+  representative_cpf: string;
+  company_name: string;
+  company_tax_id: string;
+  representative_email: string;
+  representative_phone: string;
 };
 
 export type PartySuggestion = {
@@ -31,6 +38,13 @@ const emptyStep = (order: number): BuilderStep => ({
   execution: 'sequential',
   deadline_hours: null,
   notification_channel: 'email',
+  signature_method: 'electronic',
+  representative_name: '',
+  representative_cpf: '',
+  company_name: '',
+  company_tax_id: '',
+  representative_email: '',
+  representative_phone: '',
 });
 
 const StepCard = ({ children }: { children: React.ReactNode }) => (
@@ -114,11 +128,11 @@ const StepBuilder = ({ value, onChange, partySuggestions = [] }: StepBuilderProp
       <div className="space-y-3">
         {items.map((step, index) => (
           <StepCard key={step.id}>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex-1 min-w-[160px]">
-                <label className="block text-sm font-medium text-slate-600">Papel</label>
-                <input
-                  className="w-full border border-slate-300 rounded-md px-3 py-2"
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-sm font-medium text-slate-600">Papel</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
                   value={step.role}
                   list={`roles-${step.id}`}
                   onChange={event => updateStep(step.id, { role: event.target.value })}
@@ -171,8 +185,80 @@ const StepBuilder = ({ value, onChange, partySuggestions = [] }: StepBuilderProp
                   <option value="email">Email</option>
                   <option value="sms">SMS</option>
                 </select>
-              </div>
             </div>
+              <div className="flex-1 min-w-[180px]">
+                <label className="block text-sm font-medium text-slate-600">Tipo de assinatura</label>
+                <select
+                  className="w-full border border-slate-300 rounded-md px-3 py-2"
+                  value={step.signature_method}
+                  onChange={event => updateStep(step.id, { signature_method: event.target.value as BuilderStep['signature_method'] })}
+                >
+                  <option value="electronic">Eletrônica</option>
+                  <option value="digital">Digital (certificado ICP)</option>
+                </select>
+              </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-600">Nome do representante</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={step.representative_name}
+                onChange={event => updateStep(step.id, { representative_name: event.target.value })}
+                placeholder="Ex.: Maria Silva"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600">CPF do representante</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={step.representative_cpf}
+                onChange={event => updateStep(step.id, { representative_cpf: event.target.value.replace(/\D/g, '') })}
+                placeholder="Somente numeros"
+                maxLength={11}
+                inputMode="numeric"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600">Empresa</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={step.company_name}
+                onChange={event => updateStep(step.id, { company_name: event.target.value })}
+                placeholder="Nome fantasia ou razao social"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600">CNPJ</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={step.company_tax_id}
+                onChange={event => updateStep(step.id, { company_tax_id: event.target.value.replace(/\D/g, '') })}
+                placeholder="Somente numeros"
+                maxLength={14}
+                inputMode="numeric"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600">Email sugerido</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                type="email"
+                value={step.representative_email}
+                onChange={event => updateStep(step.id, { representative_email: event.target.value })}
+                placeholder="contato@empresa.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600">Telefone sugerido</label>
+              <input
+                className="w-full border border-slate-300 rounded-md px-3 py-2"
+                value={step.representative_phone}
+                onChange={event => updateStep(step.id, { representative_phone: event.target.value })}
+                placeholder="(11) 99999-0000"
+              />
+            </div>
+          </div>
             {(() => {
               const warnings = warningsForStep(step);
               if (!warnings.length) return null;

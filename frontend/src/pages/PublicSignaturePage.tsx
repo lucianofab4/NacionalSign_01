@@ -17,9 +17,11 @@ import {
   fetchPublicMeta,
   fetchPublicDocumentFields,
   postPublicSign,
+  groupPublicSign,
   startPublicAgentSession,
   completePublicAgentSession,
   type PublicMeta,
+  type PublicGroupSignPayload,
   type SigningCertificate,
   type DocumentField,
 } from "../api";
@@ -77,6 +79,8 @@ export default function PublicSignaturePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [groupSelections, setGroupSelections] = useState<string[]>([]);
+  const [groupSigning, setGroupSigning] = useState(false);
 
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
   const [certificates, setCertificates] = useState<SigningCertificate[]>([]);
@@ -129,8 +133,12 @@ export default function PublicSignaturePage() {
   const collectSignatureImage = Boolean(meta?.collect_signature_image);
   const signatureImageIsRequired = Boolean(meta?.signature_image_required);
   const requiresConsent = Boolean(meta?.requires_consent);
-  const consentText = meta?.consent_text ?? "Autorizo o uso da minha imagem e dados pessoais para fins de assinatura eletrnica.";
+  const consentText = meta?.consent_text ?? "Autorizo o uso da minha imagem e dados pessoais para fins de assinatura eletrônica.";
   const consentVersion = meta?.consent_version ?? "v1";
+  const allowTypedNameOption = Boolean(meta?.allow_typed_name ?? meta?.collect_typed_name);
+  const allowSignatureImageOption = Boolean(meta?.allow_signature_image ?? meta?.collect_signature_image);
+  const allowSignatureDrawOption = Boolean(meta?.allow_signature_draw ?? meta?.collect_signature_image ?? false);
+  const hasQuickSignOptions = allowTypedNameOption || allowSignatureImageOption || allowSignatureDrawOption;
   const availableFields = meta?.available_fields ?? [];
   const pageFields = useMemo(
     () => fields.filter(field => Number(field.page ?? 1) === currentPage),
@@ -180,27 +188,43 @@ export default function PublicSignaturePage() {
     }
   }, [requiresConsent]);
 
+  const reloadMeta = useCallback(async () => {
+    if (!token) {
+      throw new Error("Token inválido.");
+    }
+    const data = await fetchPublicMeta(token);
+    setMeta(data);
+    if (data.group_documents && data.group_documents.length > 0) {
+      const availableIds = data.group_documents
+        .filter(doc => (doc.status || "").toLowerCase() !== "completed")
+        .map(doc => doc.id);
+      setGroupSelections(prev => {
+        const preserved = prev.filter(id => availableIds.includes(id));
+        return preserved.length > 0 ? preserved : availableIds;
+      });
+    } else {
+      setGroupSelections([]);
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!token) {
       setError("Token inválido.");
       setLoading(false);
       return;
     }
-    (async () => {
-      try {
-        const data = await fetchPublicMeta(token);
-        setMeta(data);
-      } catch (err: unknown) {
+    setLoading(true);
+    reloadMeta()
+      .then(() => setError(null))
+      .catch(err => {
         if (axios.isAxiosError(err) && err.response?.status === 404) {
           setError("Link de assinatura inválido ou expirado. Solicite um novo e-mail.");
         } else {
           setError("Não foi possível carregar os dados da assinatura.");
         }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [token]);
+      })
+      .finally(() => setLoading(false));
+  }, [token, reloadMeta]);
 
   const handleDocumentLoadSuccess = ({ numPages: nextNumPages }: { numPages?: number }) => {
     const resolved = nextNumPages || 1;
@@ -298,11 +322,10 @@ export default function PublicSignaturePage() {
     setSignatureImageInputKey(prev => prev + 1);
   };
 
-  const handleSignElectronically = async () => {
-    if (!token) return;
+  const buildSignaturePayload = (): PublicGroupSignPayload | null => {
     if (requiresCertificate) {
       toast.error("Esta assinatura exige certificado digital.");
-      return;
+      return null;
     }
 
     setFormError(null);
@@ -319,10 +342,12 @@ export default function PublicSignaturePage() {
       const message = `Preencha os campos obrigatórios: ${names}`;
       setFormError(message);
       toast.error(message);
-      return;
+      return null;
     }
 
-    const payload: any = {
+    const payload: PublicGroupSignPayload = {
+      token: token ?? "",
+      documents: [],
       action: "sign",
       signature_type: "electronic",
       fields: [] as any[],
@@ -334,7 +359,7 @@ export default function PublicSignaturePage() {
         const message = "Digite seu nome completo para continuar.";
         setFormError(message);
         toast.error(message);
-        return;
+        return null;
       }
       if (value) {
         payload.typed_name = value;
@@ -347,7 +372,7 @@ export default function PublicSignaturePage() {
         const message = "Confirme o e-mail cadastrado para continuar.";
         setFormError(message);
         toast.error(message);
-        return;
+        return null;
       }
       payload.confirm_email = value;
     }
@@ -358,7 +383,7 @@ export default function PublicSignaturePage() {
         const message = "Informe os 4 últimos dígitos do telefone cadastrado.";
         setFormError(message);
         toast.error(message);
-        return;
+        return null;
       }
       payload.confirm_phone_last4 = digits;
     }
@@ -369,7 +394,7 @@ export default function PublicSignaturePage() {
         const message = "Informe o CPF cadastrado utilizando 11 dígitos.";
         setFormError(message);
         toast.error(message);
-        return;
+        return null;
       }
       payload.confirm_cpf = digits;
     }
@@ -397,7 +422,7 @@ export default function PublicSignaturePage() {
         fieldPayload.signature_image_name = "signature-draw.png";
       }
 
-      payload.fields.push(fieldPayload);
+      (payload.fields as any[]).push(fieldPayload);
     });
 
     if (collectSignatureImage) {
@@ -413,7 +438,7 @@ export default function PublicSignaturePage() {
         const message = "Envie a imagem da assinatura para continuar.";
         setFormError(message);
         toast.error(message);
-        return;
+        return null;
       }
     }
 
@@ -422,7 +447,7 @@ export default function PublicSignaturePage() {
         const message = "Autorize o uso da imagem para concluir a assinatura.";
         setFormError(message);
         toast.error(message);
-        return;
+        return null;
       }
       payload.consent = true;
       if (consentText) {
@@ -432,6 +457,14 @@ export default function PublicSignaturePage() {
         payload.consent_version = consentVersion;
       }
     }
+
+    return payload;
+  };
+
+  const handleSignElectronically = async () => {
+    if (!token) return;
+    const payload = buildSignaturePayload();
+    if (!payload) return;
 
     setBusy(true);
     try {
@@ -447,10 +480,49 @@ export default function PublicSignaturePage() {
     }
   };
 
+  const handleSignSelectedDocuments = async () => {
+    if (!meta?.group_id) {
+      toast.error("Nenhum lote disponível.");
+      return;
+    }
+    if (!token) {
+      toast.error("Token de assinatura indisponivel.");
+      return;
+    }
+    if (groupSelections.length === 0) {
+      toast.error("Selecione ao menos um documento para assinar.");
+      return;
+    }
+    const payload = buildSignaturePayload();
+    if (!payload) return;
+    payload.documents = groupSelections;
+    setGroupSigning(true);
+    try {
+      await groupPublicSign(token, payload);
+      toast.success("Documentos selecionados assinados.");
+      await reloadMeta();
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err);
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setGroupSigning(false);
+    }
+  };
+
+  const toggleGroupSelection = (docId: string, disabled?: boolean) => {
+    if (disabled) return;
+    setGroupSelections(prev => (prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]));
+  };
+
   const handleQuickSign = (type: "typed_name" | "draw" | "image", event?: ChangeEvent<HTMLInputElement>) => {
     if (!currentSigningField) return;
 
     if (type === "typed_name") {
+      if (!allowTypedNameOption) {
+        toast.error("Assinatura por nome digitado não está habilitada.");
+        return;
+      }
       const name = prompt("Digite seu nome completo exatamente como deseja assinar:");
       if (name) {
         setFieldSignatureMap(prev => ({
@@ -465,12 +537,20 @@ export default function PublicSignaturePage() {
     }
 
     if (type === "draw") {
+      if (!allowSignatureDrawOption) {
+        toast.error("A opção de desenhar assinatura não está habilitada.");
+        return;
+      }
       setSignatureModalOpen(false);
       setDrawModalOpen(true);
       return;
     }
 
     if (type === "image") {
+      if (!allowSignatureImageOption) {
+        toast.error("Upload de assinatura não está habilitado.");
+        return;
+      }
       const file = event?.target?.files?.[0];
       if (!file) {
         toast.error("Selecione uma imagem para continuar.");
@@ -696,6 +776,9 @@ export default function PublicSignaturePage() {
     );
   }
 
+  const groupDocuments = meta.group_documents ?? [];
+  const hasGroup = Boolean(meta.group_id && groupDocuments.length > 0);
+
   if (done) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
@@ -735,6 +818,55 @@ export default function PublicSignaturePage() {
               <dd className="font-medium text-slate-800">{requiresCertificate ? "Sim" : "Não"}</dd>
             </div>
           </dl>
+          {hasGroup && (
+            <div className="mt-6 space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-xs text-slate-600">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-700">Documentos no lote</h3>
+                <span className="text-[11px] text-slate-500">
+                  {groupDocuments.length} documento{groupDocuments.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Selecione os documentos que deseja assinar agora. Os que já foram concluídos aparecem automaticamente como finalizados.
+              </p>
+              <ul className="space-y-2">
+                {groupDocuments.map(doc => {
+                  const normalizedStatus = (doc.status || "").toLowerCase();
+                  const disabled = normalizedStatus === "completed";
+                  const checked = groupSelections.includes(doc.id);
+                  return (
+                    <li key={doc.id} className="flex items-center justify-between gap-3 rounded border border-white bg-white px-3 py-2">
+                      <label className="flex items-center gap-3 text-slate-700">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={checked || disabled}
+                          disabled={disabled}
+                          onChange={() => toggleGroupSelection(doc.id, disabled)}
+                        />
+                        <span className="text-sm font-medium">{doc.name}</span>
+                      </label>
+                      <span
+                        className={`text-[11px] font-semibold uppercase ${
+                          disabled ? "text-emerald-600" : "text-slate-500"
+                        }`}
+                      >
+                        {doc.status.replace(/_/g, " ")}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <button
+                type="button"
+                className="btn btn-primary btn-xs"
+                onClick={handleSignSelectedDocuments}
+                disabled={groupSigning || groupSelections.length === 0}
+              >
+                {groupSigning ? "Assinando documentos..." : "Assinar documentos selecionados"}
+              </button>
+            </div>
+          )}
 
           {(collectTypedName || requiresEmailConfirmation || requiresPhoneConfirmation || requiresCpfConfirmation || collectSignatureImage || requiresConsent) && (
             <div className="mt-6 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -936,13 +1068,13 @@ export default function PublicSignaturePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-600">
                   <div className="flex items-center gap-2">
                     <button type="button" className="btn btn-ghost btn-xs" onClick={handlePrevPage} disabled={currentPage <= 1}>
-                      ?
+                      ←
                     </button>
                     <span>
-                      Pagina {currentPage}/{numPages}
+                      Página {currentPage}/{numPages}
                     </span>
                     <button type="button" className="btn btn-ghost btn-xs" onClick={handleNextPage} disabled={currentPage >= numPages}>
-                      ?
+                      →
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1006,6 +1138,9 @@ export default function PublicSignaturePage() {
                                   if (!isSignatureField) return;
                                   setCurrentSigningField(field);
                                   setSignatureModalOpen(true);
+                                  if (!hasQuickSignOptions) {
+                                    toast.error("Nenhuma modalidade de assinatura eletrônica está habilitada para este documento.");
+                                  }
                                 }}
                               >
                                 <div className="flex h-full w-full items-center justify-center p-1 text-center">
@@ -1191,34 +1326,51 @@ export default function PublicSignaturePage() {
               {currentSigningField.label || currentSigningField.field_type.replace(/_/g, " ")}
             </p>
             <div className="mt-4 space-y-3">
-              <button
-                type="button"
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
-                onClick={() => handleQuickSign("typed_name")}
-              >
-                Digitar meu nome
-              </button>
-              <button
-                type="button"
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
-                onClick={() => handleQuickSign("draw")}
-              >
-                Desenhar assinatura
-              </button>
-              <button
-                type="button"
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
-                onClick={() => imageUploadRef.current?.click()}
-              >
-                Fazer upload da imagem
-              </button>
-              <input
-                ref={imageUploadRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={event => handleQuickSign("image", event)}
-              />
+              {!hasQuickSignOptions ? (
+                <p className="text-sm text-slate-500">
+                  Nenhuma modalidade eletrônica foi habilitada para este documento. Entre em contato com o remetente
+                  para ajustar as permissões de assinatura.
+                </p>
+              ) : (
+                <>
+                  {allowTypedNameOption && (
+                    <button
+                      type="button"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                      onClick={() => handleQuickSign("typed_name")}
+                    >
+                      Digitar meu nome
+                    </button>
+                  )}
+                  {allowSignatureDrawOption && (
+                    <button
+                      type="button"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                      onClick={() => handleQuickSign("draw")}
+                    >
+                      Desenhar assinatura
+                    </button>
+                  )}
+                  {allowSignatureImageOption && (
+                    <>
+                      <button
+                        type="button"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                        onClick={() => imageUploadRef.current?.click()}
+                      >
+                        Fazer upload da imagem
+                      </button>
+                      <input
+                        ref={imageUploadRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={event => handleQuickSign("image", event)}
+                      />
+                    </>
+                  )}
+                </>
+              )}
             </div>
             <div className="mt-6 flex justify-end">
               <button

@@ -33,3 +33,107 @@ TestResults/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment variables (CRITICAL - never commit)
+.env
+.env.local
+.env.development.local
+.env.production.local
+backend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+backend/dev.db
+backend/temp_*.db
+
+# Storage directories
+backend/storage/
+backend/_storage/
+storage/
+
+# Backup files
+backup_script.log
+*.backup
+*.sql.backup
+
+# Temp files
+temp_*.*
+*.tmp
+*.log
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# SSL Certificates
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# Signing Agent certificates
+backend/signing-agent-prototype/certificates/
+
+# Package locks (keep package.json, ignore locks for flexibility)
+package-lock.json
+yarn.lock
+
+# Environment variables (CRITICAL - never commit)
+.env
+.env.local
+.env.development.local
+.env.production.local
+backend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+backend/dev.db
+backend/temp_*.db
+
+# Storage directories
+backend/storage/
+backend/_storage/
+storage/
+
+# Backup files
+backup_script.log
+*.backup
+*.sql.backup
+
+# Temp files
+temp_*.*
+*.tmp
+*.log
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# SSL Certificates
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# Signing Agent certificates
+backend/signing-agent-prototype/certificates/
+
+# Package locks (keep package.json, ignore locks for flexibility)
+package-lock.json
+yarn.lock

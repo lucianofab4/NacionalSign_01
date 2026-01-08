@@ -7,7 +7,7 @@ from sqlmodel import Field, Relationship
 from sqlalchemy import JSON
 
 from app.models.base import TimestampedModel, UUIDModel
-from app.models.document import Document, DocumentParty
+from app.models.document import Document, DocumentGroup, DocumentParty
 
 
 class WorkflowStatus(str, Enum):
@@ -33,12 +33,15 @@ class WorkflowInstance(UUIDModel, TimestampedModel, table=True):
     __tablename__ = "workflows"
 
     document_id: UUID = Field(foreign_key="documents.id", index=True)
+    group_id: UUID | None = Field(default=None, foreign_key="document_groups.id", index=True)
     template_id: UUID | None = Field(default=None, foreign_key="workflow_templates.id")
     status: WorkflowStatus = Field(default=WorkflowStatus.DRAFT)
     started_at: Optional[datetime] = Field(default=None)
     completed_at: Optional[datetime] = Field(default=None)
+    is_group_workflow: bool = Field(default=False)
 
     document: Document = Relationship()
+    group: Optional[DocumentGroup] = Relationship()
     steps: List["WorkflowStep"] = Relationship(back_populates="workflow")
 
 
@@ -60,24 +63,28 @@ class WorkflowStep(UUIDModel, TimestampedModel, table=True):
 
 
 class SignatureRequestStatus(str, Enum):
-    PENDING = "pending"
-    SENT = "sent"
-    SIGNED = "signed"
-    REFUSED = "refused"
-    DELEGATED = "delegated"
-    EXPIRED = "expired"
+    PENDING = "pendente"
+    SENT = "enviado"
+    SIGNED = "assinado"
+    REFUSED = "recusado"
+    DELEGATED = "delegado"
+    EXPIRED = "expirado"
 
 
 class SignatureRequest(UUIDModel, TimestampedModel, table=True):
     __tablename__ = "signature_requests"
 
     workflow_step_id: UUID = Field(foreign_key="workflow_steps.id", index=True)
+    document_id: UUID = Field(foreign_key="documents.id", index=True)
+    group_id: UUID | None = Field(default=None, foreign_key="document_groups.id", index=True)
     token_channel: str | None = Field(default=None)
     token_hash: str | None = Field(default=None)
     token_expires_at: Optional[datetime] = Field(default=None)
     status: SignatureRequestStatus = Field(default=SignatureRequestStatus.PENDING)
 
     step: WorkflowStep = Relationship(back_populates="signature_requests")
+    document: Document = Relationship(sa_relationship_kwargs={"foreign_keys": "SignatureRequest.document_id"})
+    group: Optional[DocumentGroup] = Relationship()
     signature: List["Signature"] = Relationship(back_populates="request")
 
 

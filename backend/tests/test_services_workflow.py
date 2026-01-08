@@ -58,7 +58,7 @@ def workflow_context(db_session: Session) -> dict:
 
 
 def test_workflow_template_duplicate_order_validation(db_session: Session, workflow_context: dict) -> None:
-    service = WorkflowService(db_session, notification_service=NotificationService())
+    service = WorkflowService(db_session, notification_service=NotificationService(session=db_session))
     tenant = workflow_context["tenant"]
     area = workflow_context["area"]
 
@@ -77,7 +77,7 @@ def test_workflow_template_duplicate_order_validation(db_session: Session, workf
 
 
 def test_workflow_dispatch_missing_role_raises(db_session: Session, workflow_context: dict) -> None:
-    service = WorkflowService(db_session, notification_service=NotificationService())
+    service = WorkflowService(db_session, notification_service=NotificationService(session=db_session))
     tenant = workflow_context["tenant"]
     area = workflow_context["area"]
     document = workflow_context["document"]
@@ -102,7 +102,7 @@ def test_workflow_dispatch_missing_role_raises(db_session: Session, workflow_con
 
 
 def test_dispatch_requires_contact_validation(db_session: Session, workflow_context: dict) -> None:
-    service = WorkflowService(db_session, notification_service=NotificationService())
+    service = WorkflowService(db_session, notification_service=NotificationService(session=db_session))
     tenant = workflow_context["tenant"]
     document = workflow_context["document"]
     party = workflow_context["party"]
@@ -128,7 +128,7 @@ def test_dispatch_requires_contact_validation(db_session: Session, workflow_cont
 
 
 def test_signature_action_captures_evidence(db_session: Session, workflow_context: dict) -> None:
-    service = WorkflowService(db_session, notification_service=NotificationService())
+    service = WorkflowService(db_session, notification_service=NotificationService(session=db_session))
     tenant = workflow_context["tenant"]
     document = workflow_context["document"]
     party = workflow_context["party"]

@@ -1,7 +1,7 @@
 ﻿# noqa: F401 to ensure models are imported for metadata
 from app.models.audit import AuditLog, AuthLog
 from app.models.billing import Invoice, Plan, Subscription
-from app.models.document import AuditArtifact, Document, DocumentParty, DocumentVersion
+from app.models.document import AuditArtifact, Document, DocumentGroup, DocumentParty, DocumentVersion
 from app.models.contact import Contact
 from app.models.tenant import Area, Tenant
 from app.models.user import User
@@ -22,6 +22,7 @@ __all__ = [
     "Subscription",
     "AuditArtifact",
     "Document",
+    "DocumentGroup",
     "DocumentParty",
     "DocumentVersion",
     "Contact",

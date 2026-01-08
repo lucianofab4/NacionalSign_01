@@ -6,7 +6,8 @@ import json
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
+from uuid import UUID
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
@@ -18,7 +19,7 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.models.audit import AuditLog
 from app.models.document import AuditArtifact, Document, DocumentParty
-from app.models.workflow import SignatureRequest, WorkflowInstance, WorkflowStep
+from app.models.workflow import SignatureRequest, SignatureRequestStatus, WorkflowInstance, WorkflowStep
 from app.services.icp import IcpIntegrationService
 from app.services.storage import LocalStorage, get_storage, normalize_storage_path, resolve_storage_root
 
@@ -70,6 +71,45 @@ class ReportService:
             .order_by(AuditLog.created_at)
         ).all()
 
+    def _build_step_lookup(self, workflow: WorkflowInstance) -> Dict[UUID, WorkflowStep]:
+        steps = self.session.exec(
+            select(WorkflowStep).where(WorkflowStep.workflow_id == workflow.id)
+        ).all()
+        return {step.id: step for step in steps}
+
+    def _collect_party_statuses(
+        self,
+        parties: Dict[UUID, DocumentParty],
+        requests: Iterable[SignatureRequest],
+        steps_by_id: Dict[UUID, WorkflowStep],
+    ) -> Dict[UUID, SignatureRequestStatus]:
+        if not parties:
+            return {}
+        relevant_party_ids = set(parties.keys())
+        aggregated: Dict[UUID, set[SignatureRequestStatus]] = {}
+        for request in requests:
+            step = steps_by_id.get(request.workflow_step_id)
+            party_id = getattr(step, "party_id", None)
+            if not party_id or party_id not in relevant_party_ids:
+                continue
+            aggregated.setdefault(party_id, set()).add(request.status)
+        priority = [
+            SignatureRequestStatus.SIGNED,
+            SignatureRequestStatus.REFUSED,
+            SignatureRequestStatus.DELEGATED,
+            SignatureRequestStatus.EXPIRED,
+            SignatureRequestStatus.SENT,
+            SignatureRequestStatus.PENDING,
+        ]
+        resolved: Dict[UUID, SignatureRequestStatus] = {}
+        for party_id, statuses in aggregated.items():
+            for target in priority:
+                if target in statuses:
+                    resolved[party_id] = target
+                    break
+            else:
+                resolved[party_id] = next(iter(statuses))
+        return resolved
 
     def _build_pdf(self, document: Document, workflow: WorkflowInstance) -> bytes:
         buffer = io.BytesIO()
@@ -212,6 +252,18 @@ class ReportService:
         story.append(Spacer(1, 10))
 
         parties = list(self._gather_parties(document))
+        party_lookup = {party.id: party for party in parties if party.id}
+        requests = list(self._gather_requests(workflow))
+        steps_by_id = self._build_step_lookup(workflow)
+        party_request_statuses = self._collect_party_statuses(party_lookup, requests, steps_by_id)
+        party_status_labels = {
+            SignatureRequestStatus.SIGNED: "Concluído",
+            SignatureRequestStatus.REFUSED: "Recusado",
+            SignatureRequestStatus.DELEGATED: "Delegado",
+            SignatureRequestStatus.EXPIRED: "Expirado",
+            SignatureRequestStatus.SENT: "Enviado",
+            SignatureRequestStatus.PENDING: "Pendente",
+        }
         story.append(Paragraph("Participantes", section_style))
         if parties:
             party_rows = [
@@ -228,7 +280,11 @@ class ReportService:
                 if party.phone_number:
                     contact_lines.append(f"Telefone: {party.phone_number}")
                 contact_lines.append(f"Função: {fmt_value(party.role)}")
-                status_value = getattr(party.status, "value", party.status)
+                derived_status = party_request_statuses.get(party.id)
+                if derived_status:
+                    status_value = party_status_labels.get(derived_status, getattr(derived_status, 'value', derived_status))
+                else:
+                    status_value = getattr(party.status, 'value', party.status)
                 party_rows.append(
                     [
                         lines_to_paragraph([(fmt_value(party.full_name), True)]),
@@ -247,7 +303,6 @@ class ReportService:
             story.append(lines_to_paragraph(["Nenhum participante registrado."], muted_style))
         story.append(Spacer(1, 6))
 
-        requests = list(self._gather_requests(workflow))
         story.append(Paragraph("Solicitações", section_style))
         if requests:
             request_rows = [
@@ -258,8 +313,8 @@ class ReportService:
                 ]
             ]
             for request in requests:
-                step = self.session.get(WorkflowStep, request.workflow_step_id)
-                party = step.party if step else None
+                step = steps_by_id.get(request.workflow_step_id)
+                party = party_lookup.get(getattr(step, "party_id", None)) if step else None
                 details_lines: list[str | tuple[str, bool]] = [
                     (f"Parte: {fmt_value(party.full_name if party else '-')}", True),
                     f"Status: {fmt_value(getattr(request.status, 'value', request.status))}",

@@ -54,6 +54,14 @@ class PublicSignatureRead(BaseModel):
     requires_certificate: bool = False
     signature_method: str = "electronic"
     requires_cpf_confirmation: bool = False
+    group_id: UUID | None = None
+    group_documents: List["PublicGroupDocument"] | None = None
+
+
+class PublicGroupDocument(BaseModel):
+    id: UUID
+    name: str
+    status: str
 
 
 class PublicSignatureMeta(BaseModel):
@@ -74,8 +82,11 @@ class PublicSignatureMeta(BaseModel):
     signer_tax_id: str | None = None
     typed_name_required: bool = False
     requires_cpf_confirmation: bool = False
-
-
+    group_id: UUID | None = None
+    group_documents: List[PublicGroupDocument] | None = None
+    allow_typed_name: bool = False
+    allow_signature_image: bool = False
+    allow_signature_draw: bool = False
 
 
 class PublicCertificateSignPayload(BaseModel):
@@ -88,6 +99,7 @@ class PublicCertificateSignPayload(BaseModel):
     confirm_email: str | None = None
     confirm_phone_last4: str | None = None
     confirm_cpf: str | None = None
+
 
 class PublicSignatureAction(BaseModel):
     action: str

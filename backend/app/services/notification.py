@@ -1,24 +1,25 @@
-﻿from __future__ import annotations
-
+from __future__ import annotations
 import base64
 import mimetypes
 import smtplib
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
 from email.utils import parseaddr
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
+from uuid import UUID
 
 import httpx
-
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-from app.services.audit import AuditService
-from app.services.storage import resolve_storage_root
+from sqlmodel import Session, select
 from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
 
+from app.models.customer import Customer
+from app.services.audit import AuditService
+from app.services.storage import resolve_storage_root
 
 @dataclass
 class EmailConfig:
@@ -27,13 +28,12 @@ class EmailConfig:
     username: str | None
     password: str | None
     sender: str
-    starttls: bool
+    starttls: bool = True
 
 @dataclass
 class SendGridConfig:
     api_key: str
     sender: str | None
-
 
 @dataclass
 class SMSConfig:
@@ -42,12 +42,13 @@ class SMSConfig:
     from_number: str | None
     messaging_service_sid: str | None
 
-
 @dataclass
 class EmailAttachment:
     filename: str
     content: bytes
     mime_type: str = "application/pdf"
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -61,6 +62,7 @@ class NotificationService:
         template_root: Path | None = None,
         sendgrid_config: Optional[SendGridConfig] = None,
         email_backend: str = "smtp",
+        session: Session | None = None,
     ) -> None:
         self.audit_service = audit_service
         self.email_config = email_config
@@ -77,6 +79,9 @@ class NotificationService:
             loader=FileSystemLoader(self.template_root),
             autoescape=select_autoescape(["html", "xml"]),
         )
+        if session is None:
+            raise ValueError("NotificationService requer uma sessão de banco de dados para resolver clientes.")
+        self.session = session
 
     def configure_public_base_url(self, base_url: str | None) -> None:
         self.public_base_url = base_url
@@ -123,7 +128,6 @@ class NotificationService:
                 return
             use_sendgrid()
             return
-
         if not use_sendgrid():
             use_smtp()
 
@@ -178,7 +182,7 @@ class NotificationService:
         request=None,
         party=None,
         extra: dict | None = None,
-    ) -> None:  # type: ignore[no-untyped-def]
+    ) -> None:
         if not self.audit_service:
             return
         details: dict[str, object | None] = {
@@ -201,6 +205,21 @@ class NotificationService:
             return self.sendgrid_config is not None
         return self.email_config is not None
 
+    def _resolve_customer_display_name(self, tenant_id: UUID | None) -> str | None:
+        """Returns the trade name registered for the tenant, if available."""
+        if not tenant_id or not self.session:
+            return None
+        try:
+            tenant_uuid = UUID(str(tenant_id))
+        except (TypeError, ValueError):
+            return None
+        customer = self.session.exec(
+            select(Customer).where(Customer.tenant_id == tenant_uuid)
+        ).first()
+        if customer:
+            return customer.trade_name or customer.corporate_name
+        return None
+
     def _build_action_link(self, token: str | None) -> str | None:
         if not token or not self.public_base_url:
             return None
@@ -211,7 +230,7 @@ class NotificationService:
         template = self.template_env.get_template(template_name)
         return template.render(**context)
 
-    def _signature_plain_text(  # type: ignore[no-untyped-def]
+    def _signature_plain_text(
         self,
         *,
         party,
@@ -220,16 +239,34 @@ class NotificationService:
         deadline_display: str | None = None,
         document_status: str | None = None,
         agent_download_url: str | None = None,
+        group_info: dict | None = None,
+        group_documents: list[dict] | None = None,
+        company_name: str | None = None,
     ) -> str:
         lines = [
-            f"Olá {party.full_name},",
+            f"Ola {party.full_name},",
             "",
-            f"Você tem uma nova solicitação de assinatura para '{document.name}'.",
+            f"Voce tem uma nova solicitacao de assinatura para '{document.name}'.",
         ]
+        if company_name:
+            lines.append(f"Solicitante: {company_name}.")
         if document_status:
             lines.append(f"Status atual: {document_status}.")
         if deadline_display:
             lines.append(f"Prazo: {deadline_display}.")
+        if group_info:
+            title = group_info.get("title") or "lote de documentos"
+            lines.append("")
+            lines.append(f"Fluxo aplicado ao grupo: {title}.")
+        if group_documents:
+            lines.append("")
+            lines.append("Documentos deste fluxo:")
+            for item in group_documents:
+                status = item.get("status")
+                if status:
+                    lines.append(f"- {item.get('name')} ({status})")
+                else:
+                    lines.append(f"- {item.get('name')}")
         if action_link:
             lines.extend(["", "Assinar agora:", action_link])
         else:
@@ -245,8 +282,6 @@ class NotificationService:
         lines.extend(["", "Equipe NacionalSign"])
         return "\n".join(lines)
 
-
-
     def _send_sms(
         self,
         *,
@@ -255,11 +290,11 @@ class NotificationService:
         action_link: str | None,
         deadline_display: str | None = None,
         document_status: str | None = None,
-    ) -> None:  # type: ignore[no-untyped-def]
+    ) -> None:
         if not self.sms_config:
             raise RuntimeError("SMS sender not configured")
         client = Client(self.sms_config.account_sid, self.sms_config.auth_token)
-        parts = [f"Você tem uma solicitação para '{document.name}'."]
+        parts = [f"Voce tem uma solicitacao para '{document.name}'."]
         if document_status:
             parts.append(f"Status: {document_status}.")
         if deadline_display:
@@ -276,8 +311,27 @@ class NotificationService:
             message_kwargs["from_"] = self.sms_config.from_number
         else:
             raise RuntimeError("SMS sender not configured")
-
         client.messages.create(**message_kwargs)
+
+    def _get_document_pdf_attachment(self, document) -> EmailAttachment | None:
+        storage_root = resolve_storage_root()
+        version = getattr(document, "current_version", None) or getattr(document, "latest_version", None)
+        if not version:
+            return None
+        path_str = version.storage_path or version.preview_url
+        if not path_str:
+            return None
+        path = Path(path_str)
+        if not path.is_absolute():
+            path = (storage_root / path).resolve()
+        if not path.exists():
+            return None
+        mime_type, _ = mimetypes.guess_type(path.name)
+        return EmailAttachment(
+            filename=path.name,
+            content=path.read_bytes(),
+            mime_type=mime_type or "application/pdf",
+        )
 
     def notify_signature_request(
         self,
@@ -286,7 +340,11 @@ class NotificationService:
         document,
         token: str | None = None,
         step=None,
-    ) -> bool:  # type: ignore[no-untyped-def]
+        *,
+        group=None,
+        group_documents: Sequence | None = None,
+        requester_name: str | None = None,
+    ) -> bool:
         channel = (getattr(party, "notification_channel", None) or "email").lower()
         deadline_at = getattr(step, "deadline_at", None)
         if deadline_at is None:
@@ -296,7 +354,21 @@ class NotificationService:
         if isinstance(deadline_at, datetime):
             deadline_display = deadline_at.strftime("%d/%m/%Y %H:%M")
             deadline_iso = deadline_at.isoformat()
-
+        normalized_group_docs = None
+        if group_documents:
+            normalized_group_docs = []
+            for doc in group_documents:
+                status_value = getattr(doc, "status", None)
+                if hasattr(status_value, "value"):
+                    status_value = status_value.value
+                if isinstance(status_value, str):
+                    status_display = status_value.replace("_", " ")
+                else:
+                    status_display = status_value
+                normalized_group_docs.append({"name": getattr(doc, "name", ""), "status": status_display})
+        group_context = None
+        if group:
+            group_context = {"title": getattr(group, "title", None)}
         self._record_event(
             event_type="notification_attempt",
             request=request,
@@ -305,7 +377,6 @@ class NotificationService:
             channel=channel,
             extra={"deadline_at": deadline_iso} if deadline_iso else None,
         )
-
         if channel not in {"email", "sms"}:
             self._record_event(
                 event_type="notification_skipped",
@@ -316,18 +387,15 @@ class NotificationService:
                 extra={"reason": "unsupported_channel"},
             )
             return False
-
         action_link = self._build_action_link(token)
         download_url: str | None = None
         if isinstance(self.agent_download_url, str):
             stripped = self.agent_download_url.strip()
             download_url = stripped or None
-
         status_value = getattr(document, "status", None)
         if hasattr(status_value, "value"):
             status_value = status_value.value
         status_display = status_value.replace("_", " ") if isinstance(status_value, str) else None
-
         if channel == "sms":
             if not self.sms_config:
                 self._record_event(
@@ -349,7 +417,6 @@ class NotificationService:
                     extra={"reason": "missing_phone"},
                 )
                 return False
-
             try:
                 self._send_sms(
                     party=party,
@@ -368,7 +435,7 @@ class NotificationService:
                     extra={"reason": str(exc)},
                 )
                 return False
-            except TwilioException as exc:  # pragma: no cover - third-party failure
+            except TwilioException as exc:
                 self._record_event(
                     event_type="notification_error",
                     request=request,
@@ -378,7 +445,6 @@ class NotificationService:
                     extra={"reason": str(exc)},
                 )
                 return False
-
             self._record_event(
                 event_type="notification_sent",
                 request=request,
@@ -388,7 +454,6 @@ class NotificationService:
                 extra={"action_link": action_link, "deadline_at": deadline_iso} if action_link else {"deadline_at": deadline_iso},
             )
             return True
-
         if not self._email_sender_available():
             self._record_event(
                 event_type="notification_skipped",
@@ -409,6 +474,17 @@ class NotificationService:
                 extra={"reason": "missing_email"},
             )
             return False
+        tenant_name = requester_name
+        if not tenant_name and document is not None:
+            customer_obj = getattr(document, "customer", None)
+            if customer_obj:
+                tenant_name = getattr(customer_obj, "trade_name", None) or getattr(customer_obj, "corporate_name", None)
+        if not tenant_name:
+            logger.warning(
+                "Customer não encontrado para document_id=%s. Usando fallback.",
+                getattr(document, "id", None),
+            )
+            tenant_name = "Empresa solicitante"
 
         html_body = self._render_template(
             "email/signature_request.html",
@@ -420,6 +496,9 @@ class NotificationService:
                 "deadline_display": deadline_display,
                 "deadline_iso": deadline_iso,
                 "agent_download_url": download_url,
+                "group_documents": normalized_group_docs,
+                "group_title": group_context.get("title") if group_context else None,
+                "requester_name": tenant_name,
             },
         )
         text_body = self._signature_plain_text(
@@ -429,16 +508,22 @@ class NotificationService:
             deadline_display=deadline_display,
             document_status=status_display,
             agent_download_url=download_url,
+            group_info=group_context,
+            group_documents=normalized_group_docs,
+            company_name=tenant_name,
         )
-
+        # Anexa PDF correto do documento atual
+        attachment = self._get_document_pdf_attachment(document)
+        attachments = [attachment] if attachment else None
         try:
             self._send_email(
                 to=party.email,
                 subject=f"Assinatura pendente: {document.name}",
                 html_body=html_body,
                 text_body=text_body,
+                attachments=attachments,
             )
-        except Exception as exc:  # pragma: no cover - best effort logging
+        except Exception as exc:
             self._record_event(
                 event_type="notification_error",
                 request=request,
@@ -448,7 +533,6 @@ class NotificationService:
                 extra={"reason": str(exc), "action_link": action_link},
             )
             return False
-
         self._record_event(
             event_type="notification_sent",
             request=request,
@@ -459,9 +543,6 @@ class NotificationService:
         )
         return True
 
-
-
-
     def notify_workflow_completed(
         self,
         *,
@@ -469,10 +550,9 @@ class NotificationService:
         parties: Iterable,
         attachments: Sequence[str | Path] | None = None,
         extra_recipients: Sequence[str] | None = None,
-    ) -> None:  # type: ignore[no-untyped-def]
+    ) -> None:
         if not self._email_sender_available():
             return
-
         recipients = []
         for party in parties:
             email = getattr(party, "email", None)
@@ -480,7 +560,6 @@ class NotificationService:
                 recipients.append(email)
         for email in extra_recipients or []:
             recipients.append(email)
-
         unique_emails = []
         seen = set()
         for email in recipients:
@@ -488,10 +567,8 @@ class NotificationService:
             if normalized not in seen:
                 seen.add(normalized)
                 unique_emails.append(email)
-
         if not unique_emails:
             return
-
         storage_root = resolve_storage_root()
         attachment_objects: list[EmailAttachment] = []
         for item in attachments or []:
@@ -508,7 +585,6 @@ class NotificationService:
                     mime_type=mime_type or "application/octet-stream",
                 )
             )
-
         html_body = self._render_template(
             "email/workflow_completed.html",
             {
@@ -519,9 +595,8 @@ class NotificationService:
         )
         text_body = (
             f"Documento '{document.name}' foi finalizado.\n"
-            "Os anexos desta mensagem contêm o relatório de auditoria gerado pela NacionalSign."
+            "Os anexos desta mensagem contem o relatorio de auditoria gerado pela NacionalSign."
         )
-
         for email in unique_emails:
             try:
                 self._send_email(
@@ -531,7 +606,7 @@ class NotificationService:
                     text_body=text_body,
                     attachments=attachment_objects,
                 )
-            except Exception as exc:  # pragma: no cover
+            except Exception as exc:
                 self._record_event(
                     event_type="workflow_completed_notification_error",
                     document=document,
@@ -539,7 +614,6 @@ class NotificationService:
                     extra={"recipient": email, "reason": str(exc)},
                 )
                 continue
-
             self._record_event(
                 event_type="workflow_completed_notification_sent",
                 document=document,
@@ -558,25 +632,23 @@ class NotificationService:
     ) -> None:
         if not self._email_sender_available():
             raise RuntimeError("Email sender not configured")
-
         safe_subject = subject or "Acesso ao sistema NacionalSign"
         html_body = (
-            f"<p>Olá {full_name},</p>"
+            f"<p>Ola {full_name},</p>"
             "<p>Segue abaixo o seu acesso ao sistema NacionalSign:</p>"
-            f"<p><strong>Usuário:</strong> {username}<br/>"
-            f"<strong>Senha temporária:</strong> {temporary_password}</p>"
-            "<p>No primeiro acesso você deverá alterar a senha.</p>"
-            "<p>Se você não reconhece esta solicitação, entre em contato com o suporte.</p>"
+            f"<p><strong>Usuario:</strong> {username}<br/>"
+            f"<strong>Senha temporaria:</strong> {temporary_password}</p>"
+            "<p>No primeiro acesso voce devera alterar a senha.</p>"
+            "<p>Se voce nao reconhece esta solicitacao, entre em contato com o suporte.</p>"
         )
         text_body = (
-            f"Olá {full_name},\n\n"
+            f"Ola {full_name},\n\n"
             "Segue abaixo o seu acesso ao sistema NacionalSign:\n"
-            f"Usuário: {username}\n"
-            f"Senha temporária: {temporary_password}\n\n"
-            "No primeiro acesso você deverá alterar a senha.\n"
-            "Se você não reconhece esta solicitação, entre em contato com o suporte.\n"
+            f"Usuario: {username}\n"
+            f"Senha temporaria: {temporary_password}\n\n"
+            "No primeiro acesso voce devera alterar a senha.\n"
+            "Se voce nao reconhece esta solicitacao, entre em contato com o suporte.\n"
         )
-
         self._send_email(
             to=to,
             subject=safe_subject,
@@ -589,6 +661,80 @@ class NotificationService:
             channel="email",
             extra={"recipient": to},
         )
+
+    def send_usage_alert_email(
+        self,
+        *,
+        recipients: Sequence[str],
+        period_start: datetime,
+        period_end: datetime,
+        alerts: Sequence[dict[str, object]],
+    ) -> None:
+        if not recipients or not self._email_sender_available():
+            raise RuntimeError("Email sender not configured")
+        normalized_recipients: list[str] = []
+        seen: set[str] = set()
+        for email in recipients:
+            if not email:
+                continue
+            normalized = email.strip()
+            if not normalized:
+                continue
+            lower = normalized.lower()
+            if lower in seen:
+                continue
+            seen.add(lower)
+            normalized_recipients.append(normalized)
+        if not normalized_recipients:
+            raise RuntimeError("No recipients available for usage alert")
+
+        rows = [
+            {
+                "tenant_name": entry.get("tenant_name"),
+                "plan_name": entry.get("plan_name"),
+                "documents_used": entry.get("documents_used"),
+                "documents_signed": entry.get("documents_signed"),
+                "documents_quota": entry.get("documents_quota"),
+                "documents_percent": entry.get("documents_percent"),
+                "documents_signed_percent": entry.get("documents_signed_percent"),
+                "limit_state": entry.get("limit_state"),
+                "limit_ratio": entry.get("limit_ratio"),
+                "message": entry.get("message"),
+            }
+            for entry in alerts
+        ]
+        context = {
+            "period_start": period_start,
+            "period_end": period_end,
+            "alerts": rows,
+        }
+        html_body = self._render_template("email/usage_alert.html", context)
+        text_lines = [
+            "Alertas de uso NacionalSign",
+            f"Periodo: {period_start:%d/%m/%Y} ate {period_end:%d/%m/%Y}",
+            "",
+        ]
+        if rows:
+            for entry in rows:
+                tenant = entry.get("tenant_name") or "Cliente"
+                used = entry.get("documents_used") or 0
+                quota = entry.get("documents_quota") or "infinito"
+                state = entry.get("limit_state") or "ok"
+                text_lines.append(f"- {tenant}: {used}/{quota} documentos (status: {state})")
+        else:
+            text_lines.append("Nenhum cliente atingiu o limite neste periodo.")
+        text_lines.append("")
+        text_lines.append("Equipe NacionalSign")
+        text_body = "\n".join(text_lines)
+
+        for email in normalized_recipients:
+            self._send_email(
+                to=email,
+                subject="NacionalSign - Alertas de uso dos clientes",
+                html_body=html_body,
+                text_body=text_body,
+            )
+
 
     def _send_email(
         self,
@@ -610,19 +756,15 @@ class NotificationService:
                 attachments=list(attachments or []),
             )
             return
-
         if not self.email_config:
             raise RuntimeError("Email sender not configured")
-
         message = EmailMessage()
         message["Subject"] = subject
         message["From"] = self.email_config.sender
         message["To"] = to
-
         plain_body = text_body or ""
         message.set_content(plain_body, subtype="plain", charset="utf-8")
         message.add_alternative(html_body, subtype="html", charset="utf-8")
-
         for attachment in attachments or []:
             maintype = "application"
             subtype = "octet-stream"
@@ -634,7 +776,6 @@ class NotificationService:
                 subtype=subtype,
                 filename=attachment.filename,
             )
-
         with smtplib.SMTP(self.email_config.host, self.email_config.port, timeout=30) as smtp:
             if self.email_config.starttls:
                 smtp.starttls()
@@ -653,19 +794,16 @@ class NotificationService:
     ) -> None:
         if not self.sendgrid_config:
             raise RuntimeError("SendGrid sender not configured")
-
         sender = self.sendgrid_config.sender or (self.email_config.sender if self.email_config else None)
         if not sender:
             raise RuntimeError("SendGrid sender address missing")
         name, email = parseaddr(sender)
         if not email:
             raise RuntimeError("SendGrid sender address invalid")
-
         contents: list[dict[str, str]] = []
         if text_body:
             contents.append({"type": "text/plain", "value": text_body})
         contents.append({"type": "text/html", "value": html_body})
-
         payload: dict[str, object] = {
             "personalizations": [{"to": [{"email": to}]}],
             "from": {"email": email},
@@ -674,7 +812,6 @@ class NotificationService:
         }
         if name:
             payload["from"]["name"] = name
-
         if attachments:
             payload["attachments"] = [
                 {
@@ -685,7 +822,6 @@ class NotificationService:
                 }
                 for item in attachments
             ]
-
         headers = {
             "Authorization": f"Bearer {self.sendgrid_config.api_key}",
             "Content-Type": "application/json",
@@ -697,4 +833,3 @@ class NotificationService:
             timeout=30,
         )
         response.raise_for_status()
-

@@ -8,7 +8,10 @@ import {
   deleteDocument,
   fetchDocumentSignatures,
   fetchDocuments,
+  fetchTrashDocuments,
+  permanentDeleteDocument,
   resendDocumentNotifications,
+  restoreDocument,
   type DocumentRecord,
   type DocumentSignature,
   type Usage,
@@ -17,7 +20,7 @@ import {
 
 export type DocumentListFilter = "all" | "my_pending" | "area_pending" | "my_documents";
 
-type DocumentStatusFilter = "all" | "draft" | "in_review" | "in_progress" | "completed" | "archived";
+type DocumentStatusFilter = "all" | "draft" | "in_review" | "in_progress" | "completed" | "archived" | "deleted";
 
 interface DocumentsPageProps {
   tenantId: string;
@@ -33,15 +36,18 @@ type PendingAction =
   | { type: "resend"; document: DocumentRecord }
   | { type: "archive"; document: DocumentRecord }
   | { type: "unarchive"; document: DocumentRecord }
-  | { type: "delete"; document: DocumentRecord };
+  | { type: "delete"; document: DocumentRecord }
+  | { type: "restore"; document: DocumentRecord }
+  | { type: "permanent_delete"; document: DocumentRecord };
 
 const statusTabs: Array<{ value: DocumentStatusFilter; label: string }> = [
   { value: "all", label: "Todos" },
   { value: "draft", label: "Rascunhos" },
-  { value: "in_review", label: "Em revisÃ£o" },
+  { value: "in_review", label: "Em revisão" },
   { value: "in_progress", label: "Em andamento" },
-  { value: "completed", label: "ConcluÃ­dos" },
+  { value: "completed", label: "Concluídos" },
   { value: "archived", label: "Arquivados" },
+  { value: "deleted", label: "Lixeira" },
 ];
 
 const formatDateTime = (value: string | null | undefined) => {
@@ -50,6 +56,7 @@ const formatDateTime = (value: string | null | undefined) => {
     return new Intl.DateTimeFormat("pt-BR", {
       dateStyle: "short",
       timeStyle: "short",
+      timeZone: "America/Sao_Paulo",
     }).format(new Date(value));
   } catch {
     return value;
@@ -71,6 +78,8 @@ const statusBadgeClasses = (status: string | null | undefined) => {
       return "bg-emerald-100 text-emerald-700";
     case "archived":
       return "bg-slate-200 text-slate-700";
+    case "deleted":
+      return "bg-red-100 text-red-700";
     default:
       return "bg-slate-100 text-slate-600";
   }
@@ -82,31 +91,37 @@ const statusLabel = (status: string | null | undefined) => {
     case "draft":
       return "Rascunho";
     case "in_review":
-      return "Em revisÃ£o";
+      return "Em revisão";
     case "in_progress":
       return "Em andamento";
     case "completed":
     case "signed":
-      return "ConcluÃ­do";
+      return "Concluído";
     case "archived":
       return "Arquivado";
+    case "deleted":
+      return "Na lixeira";
     default:
-      return status ? status.replace(/_/g, " ") : "â€”";
+      return status ? status.replace(/_/g, " ") : "—";
   }
 };
 
 const getActionTitle = (type: PendingAction["type"]) => {
   switch (type) {
     case "resend":
-      return "Reenviar notificaÃ§Ãµes";
+      return "Reenviar notificações";
     case "archive":
       return "Arquivar documento";
     case "unarchive":
       return "Desarquivar documento";
     case "delete":
-      return "Excluir documento";
+      return "Mover para lixeira";
+    case "restore":
+      return "Restaurar documento";
+    case "permanent_delete":
+      return "Excluir permanentemente";
     default:
-      return "Confirmar aÃ§Ã£o";
+      return "Confirmar ação";
   }
 };
 
@@ -115,11 +130,15 @@ const getActionDescription = (type: PendingAction["type"], name: string) => {
     case "resend":
       return `Vamos reenviar os convites de assinatura para "${name}".`;
     case "archive":
-      return `Arquivar "${name}" remove o documento da lista ativa, mas mantÃ©m o histÃ³rico para consulta.`;
+      return `Arquivar "${name}" remove o documento da lista ativa, mas mantém o histórico para consulta.`;
     case "unarchive":
-      return `Desarquivar "${name}" devolve o documento Ã  listagem ativa.`;
+      return `Desarquivar "${name}" devolve o documento à listagem ativa.`;
     case "delete":
-      return `Excluir "${name}" remove permanentemente o documento e suas versÃµes. Esta aÃ§Ã£o nÃ£o pode ser desfeita.`;
+      return `Mover "${name}" para a lixeira. Pode ser restaurado em até 30 dias.`;
+    case "restore":
+      return `Restaurar "${name}" da lixeira e devolver à listagem ativa.`;
+    case "permanent_delete":
+      return `Excluir "${name}" permanentemente. Esta ação não pode ser desfeita.`;
     default:
       return "";
   }
@@ -134,7 +153,11 @@ const getConfirmLabel = (type: PendingAction["type"]) => {
     case "unarchive":
       return "Desarquivar";
     case "delete":
-      return "Excluir";
+      return "Mover para lixeira";
+    case "restore":
+      return "Restaurar";
+    case "permanent_delete":
+      return "Excluir permanentemente";
     default:
       return "Confirmar";
   }
@@ -177,7 +200,12 @@ export default function DocumentsPage({
     }
     setLoadingDocs(true);
     try {
-      const list = await fetchDocuments(areaId);
+      let list;
+      if (statusFilter === "deleted") {
+        list = await fetchTrashDocuments(areaId);
+      } else {
+        list = await fetchDocuments(areaId);
+      }
       setDocuments(list);
       setSelectedIds(new Set());
     } catch (error) {
@@ -186,7 +214,7 @@ export default function DocumentsPage({
     } finally {
       setLoadingDocs(false);
     }
-  }, [tenantId, areaId]);
+  }, [tenantId, areaId, statusFilter]);
 
   useEffect(() => {
     void loadDocuments();
@@ -196,9 +224,9 @@ export default function DocumentsPage({
     if (!focusFilter) return;
     setDocumentFilter(focusFilter);
     if (focusFilter === "my_pending") {
-      toast.success("Mostrando documentos pendentes criados por vocÃª.");
+      toast.success("Mostrando documentos pendentes criados por você.");
     } else if (focusFilter === "area_pending") {
-      toast.success("Mostrando pendentes na sua Ã¡rea.");
+      toast.success("Mostrando pendentes na sua área.");
     }
     onFocusConsumed?.();
   }, [focusFilter, onFocusConsumed]);
@@ -240,6 +268,9 @@ export default function DocumentsPage({
   const visibleDocuments = useMemo(() => {
     return filteredByAudience
       .filter(doc => {
+        // Se estamos na aba lixeira, não filtrar por status pois já carregamos só os deletados
+        if (statusFilter === "deleted") return true;
+        
         if (statusFilter === "all") return true;
         const normalized = normalizeStatus(doc.status);
         if (statusFilter === "completed") {
@@ -316,7 +347,7 @@ export default function DocumentsPage({
       void openTrackingPanel(doc);
       return;
     }
-    if (value === "resend" || value === "archive" || value === "unarchive" || value === "delete") {
+    if (value === "resend" || value === "archive" || value === "unarchive" || value === "delete" || value === "restore" || value === "permanent_delete") {
       setPendingAction({ type: value, document: doc } as PendingAction);
     }
   };
@@ -360,7 +391,7 @@ export default function DocumentsPage({
         await loadDocuments();
       } catch (error) {
         console.error(error);
-        toast.error("NÃ£o foi possÃ­vel concluir a aÃ§Ã£o para todos os documentos selecionados.");
+        toast.error("Não foi possível concluir a ação para todos os documentos selecionados.");
       } finally {
         setActionLoading(false);
       }
@@ -376,7 +407,7 @@ export default function DocumentsPage({
     }
     if (
       !window.confirm(
-        `Arquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles continuarÃ£o disponÃ­veis na aba Arquivados.`,
+        `Arquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles continuarão disponíveis na aba Arquivados.`,
       )
     ) {
       return;
@@ -392,7 +423,7 @@ export default function DocumentsPage({
     }
     if (
       !window.confirm(
-        `Desarquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles voltarÃ£o para a lista ativa.`,
+        `Desarquivar ${targets.length} documento${targets.length > 1 ? "s" : ""}? Eles voltarão para a lista ativa.`,
       )
     ) {
       return;
@@ -407,12 +438,42 @@ export default function DocumentsPage({
     }
     if (
       !window.confirm(
-        `Excluir ${selectedCount} documento${selectedCount > 1 ? "s" : ""}? Esta aÃ§Ã£o removerÃ¡ permanentemente todas as versÃµes e registros relacionados.`,
+        `Excluir ${selectedCount} documento${selectedCount > 1 ? "s" : ""}? Os documentos serão movidos para a lixeira.`,
       )
     ) {
       return;
     }
-    await runBulkAction(selectedDocuments, documentId => deleteDocument(documentId), "Documentos excluÃ­dos.");
+    await runBulkAction(selectedDocuments, documentId => deleteDocument(documentId), "Documentos movidos para a lixeira.");
+  };
+
+  const handleBulkRestore = async () => {
+    if (!hasSelection) {
+      toast.error("Selecione documentos para restaurar.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Restaurar ${selectedCount} documento${selectedCount > 1 ? "s" : ""}?`,
+      )
+    ) {
+      return;
+    }
+    await runBulkAction(selectedDocuments, documentId => restoreDocument(documentId), "Documentos restaurados.");
+  };
+
+  const handleBulkPermanentDelete = async () => {
+    if (!hasSelection) {
+      toast.error("Selecione documentos para excluir permanentemente.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `EXCLUIR PERMANENTEMENTE ${selectedCount} documento${selectedCount > 1 ? "s" : ""}? Esta ação não pode ser desfeita e removerá completamente os documentos do sistema.`,
+      )
+    ) {
+      return;
+    }
+    await runBulkAction(selectedDocuments, documentId => permanentDeleteDocument(documentId), "Documentos excluídos permanentemente.");
   };
 
   const handleCloseActionModal = () => {
@@ -430,8 +491,8 @@ export default function DocumentsPage({
           const response = await resendDocumentNotifications(document.id);
           toast.success(
             response.notified > 0
-              ? `NotificaÃ§Ãµes reenviadas para ${response.notified} destinatÃ¡rio(s).`
-              : "Nenhum destinatÃ¡rio pendente para reenviar.",
+              ? `Notificações reenviadas para ${response.notified} destinatário(s).`
+              : "Nenhum destinatário pendente para reenviar.",
           );
           break;
         }
@@ -450,7 +511,19 @@ export default function DocumentsPage({
         case "delete": {
           await deleteDocument(document.id);
           setDocuments(prev => prev.filter(item => item.id !== document.id));
-          toast.success("Documento excluÃ­do.");
+          toast.success("Documento movido para lixeira.");
+          break;
+        }
+        case "restore": {
+          const updated = await restoreDocument(document.id);
+          setDocuments(prev => prev.filter(item => item.id !== document.id));
+          toast.success("Documento restaurado.");
+          break;
+        }
+        case "permanent_delete": {
+          await permanentDeleteDocument(document.id);
+          setDocuments(prev => prev.filter(item => item.id !== document.id));
+          toast.success("Documento excluído permanentemente.");
           break;
         }
         default:
@@ -459,7 +532,7 @@ export default function DocumentsPage({
       setPendingAction(null);
     } catch (error) {
       console.error(error);
-      let message = "Falha ao executar a aÃ§Ã£o.";
+      let message = "Falha ao executar a ação.";
       if (isAxiosError(error)) {
         message = (error.response?.data as any)?.detail ?? message;
       } else if (error instanceof Error) {
@@ -476,7 +549,7 @@ export default function DocumentsPage({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Documentos</h1>
-          <p className="text-sm text-slate-500">Acompanhe todos os envios em um sÃ³ lugar.</p>
+          <p className="text-sm text-slate-500">Acompanhe todos os envios em um só lugar.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadDocuments()}>
@@ -499,7 +572,7 @@ export default function DocumentsPage({
 
       {!areaReady && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Selecione uma Ã¡rea para visualizar os documentos disponÃ­veis.
+          Selecione uma área para visualizar os documentos disponíveis.
         </div>
       )}
 
@@ -528,7 +601,7 @@ export default function DocumentsPage({
             >
               <option value="all">Todos</option>
               <option value="my_pending">Pendentes (meus)</option>
-              <option value="area_pending">Pendentes na Ã¡rea</option>
+              <option value="area_pending">Pendentes na área</option>
             </select>
           </div>
         </div>
@@ -539,30 +612,53 @@ export default function DocumentsPage({
               {selectedCount} documento{selectedCount > 1 ? "s" : ""} selecionado{selectedCount > 1 ? "s" : ""}.
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={handleBulkArchive}
-                disabled={actionLoading}
-              >
-                Arquivar
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={handleBulkUnarchive}
-                disabled={actionLoading}
-              >
-                Desarquivar
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
-                onClick={handleBulkDelete}
-                disabled={actionLoading}
-              >
-                Excluir
-              </button>
+              {statusFilter === "deleted" ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleBulkRestore}
+                    disabled={actionLoading}
+                  >
+                    Restaurar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={handleBulkPermanentDelete}
+                    disabled={actionLoading}
+                  >
+                    Excluir permanentemente
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleBulkArchive}
+                    disabled={actionLoading}
+                  >
+                    Arquivar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleBulkUnarchive}
+                    disabled={actionLoading}
+                  >
+                    Desarquivar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={handleBulkDelete}
+                    disabled={actionLoading}
+                  >
+                    Mover para lixeira
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -573,8 +669,8 @@ export default function DocumentsPage({
           <div className="py-10 text-center text-sm text-slate-500">
             {documentFilter === "all" && statusFilter === "all"
               ? areaReady
-                ? "Nenhum documento cadastrado nesta Ã¡rea."
-                : "Conecte uma Ã¡rea para visualizar os documentos."
+                ? "Nenhum documento cadastrado nesta área."
+                : "Conecte uma área para visualizar os documentos."
               : "Nenhum documento encontrado para os filtros selecionados."}
           </div>
         ) : (
@@ -594,7 +690,7 @@ export default function DocumentsPage({
                   <th className="px-4 py-3">Documento</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Atualizado</th>
-                  <th className="px-4 py-3">AÃ§Ãµes</th>
+                  <th className="px-4 py-3">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -650,13 +746,13 @@ export default function DocumentsPage({
                           }}
                         >
                           <option value="" disabled>
-                            AÃ§Ãµes
+                            Ações
                           </option>
                           <option value="edit">Editar participantes</option>
                           {currentUser?.id === doc.created_by_id && (
                             <option value="track">Acompanhar assinaturas</option>
                           )}
-                          {canResend && <option value="resend">Reenviar notificaÃ§Ãµes</option>}
+                          {canResend && <option value="resend">Reenviar notificações</option>}
                         </select>
                       </td>
                     </tr>

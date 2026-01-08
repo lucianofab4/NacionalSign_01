@@ -22,13 +22,30 @@ from app.services.workflow import WorkflowService
 
 
 class DummyNotification(NotificationService):
-    def __init__(self) -> None:
-        super().__init__(audit_service=None, email_config=None, public_base_url=None, sms_config=None)
+    def __init__(self, session: Session) -> None:
+        super().__init__(
+            audit_service=None,
+            email_config=None,
+            public_base_url=None,
+            sms_config=None,
+            session=session,
+        )
         self.sent_signature_requests: list[dict] = []
         self.sent_completed: list[dict] = []
 
     # Bypass real sending and templates for unit tests
-    def notify_signature_request(self, request, party, document, token: str | None = None, step=None) -> bool:  # type: ignore[override]
+    def notify_signature_request(
+        self,
+        request,
+        party,
+        document,
+        token: str | None = None,
+        step=None,
+        *,
+        group=None,
+        group_documents=None,
+        requester_name=None,
+    ) -> bool:  # type: ignore[override]
         self.sent_signature_requests.append({
             "party_email": getattr(party, "email", None),
             "document_id": str(document.id),
@@ -154,7 +171,7 @@ def test_final_report_generated_with_timestamp_and_email(db_session: Session, st
     db_session.add_all([typed_field, image_field])
     db_session.commit()
 
-    notifier = DummyNotification()
+    notifier = DummyNotification(db_session)
     service = WorkflowService(db_session, notification_service=notifier)
 
     workflow = service.dispatch_workflow(tenant.id, document.id, WorkflowDispatch())

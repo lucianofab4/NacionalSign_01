@@ -31,6 +31,7 @@ import {
   type DocumentVersion,
   type DocumentField,
   type DocumentParty,
+  type DocumentPartyPayload,
   type DocumentGroupDetail,
   type AuditEvent,
   signDocumentVersionWithAgent,
@@ -95,6 +96,7 @@ const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
   }).format(new Date(value));
 
 const formatStatusLabel = (value?: string | null) => (value ? value.replace(/_/g, " ") : "Sem status");
@@ -265,6 +267,7 @@ export default function DocumentManagerPage({
   const [templateDescription, setTemplateDescription] = useState("");
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateRoleEditing, setTemplateRoleEditing] = useState<string | null>(null);
+  const [autoCreatingParties, setAutoCreatingParties] = useState(false);
   const [hashCopied, setHashCopied] = useState(false);
   const [documentFilter, setDocumentFilter] = useState<DocumentListFilter>("all");
   const [shareCopied, setShareCopied] = useState(false);
@@ -372,6 +375,13 @@ export default function DocumentManagerPage({
         execution: "sequential",
         deadline_hours: null,
         notification_channel: party.notification_channel === "sms" ? "sms" : "email",
+        signature_method: (party.signature_method as "digital" | "electronic") === "digital" ? "digital" : "electronic",
+        representative_name: party.full_name ?? "",
+        representative_cpf: party.cpf ?? "",
+        company_name: party.company_name ?? "",
+        company_tax_id: party.company_tax_id ?? "",
+        representative_email: party.email ?? "",
+        representative_phone: party.phone_number ?? "",
       })),
     [],
   );
@@ -927,29 +937,157 @@ export default function DocumentManagerPage({
       action: step.action.trim().toLowerCase() || "sign",
       execution: step.execution,
       deadline_hours: step.deadline_hours ?? null,
+      notification_channel: step.notification_channel,
+      signature_method: step.signature_method,
+      representative_name: step.representative_name.trim() || undefined,
+      representative_cpf: step.representative_cpf.replace(/\D/g, "") || undefined,
+      company_name: step.company_name.trim() || undefined,
+      company_tax_id: step.company_tax_id.replace(/\D/g, "") || undefined,
+      representative_email: step.representative_email.trim().toLowerCase() || undefined,
+      representative_phone: normalizePhone(step.representative_phone) || undefined,
     }));
   }, [manualFlowSteps]);
 
-  const handleStartRoleParty = useCallback(
-    (role: string) => {
-      setTemplateRoleEditing(role);
-      setEditingPartyId(null);
-      setPartyError(null);
-      const normalizedRole = normalizeRoleValue(role);
+  const focusPartyFormForStep = useCallback(
+    (step: BuilderStep, adoptSuggestion = false) => {
+      const roleLabel = step.role || `papel_${step.order}`;
+      const normalizedRole = normalizeRoleValue(roleLabel);
       const nextOrder =
         normalizedRole?.length
           ? parties.filter(item => normalizeRoleValue(item.role) === normalizedRole).length + 1
           : parties.length + 1;
-      setPartyForm({
-        ...defaultPartyForm(),
-        role,
+      const notificationChannel = step.notification_channel === "sms" ? "sms" : "email";
+      const signatureMethod = step.signature_method === "digital" ? "digital" : "electronic";
+      const nextForm = {
+        ...defaultPartyForm(nextOrder),
+        role: roleLabel,
         order_index: nextOrder,
-      });
+        notification_channel: notificationChannel,
+        signature_method: signatureMethod,
+      };
+      if (adoptSuggestion) {
+        nextForm.full_name = step.representative_name ?? "";
+        nextForm.cpf = step.representative_cpf ?? "";
+        nextForm.company_name = step.company_name ?? "";
+        nextForm.company_tax_id = step.company_tax_id ?? "";
+        nextForm.email = step.representative_email?.trim().toLowerCase() ?? "";
+        nextForm.phone_number = step.representative_phone?.trim() ?? "";
+      }
+      setPartyForm(nextForm);
+      setTemplateRoleEditing(step.id);
+      setEditingPartyId(null);
+      setPartyError(null);
       setTimeout(() => {
         document.getElementById("party-form-anchor")?.scrollIntoView({ behavior: "smooth" });
       }, 50);
+      if (adoptSuggestion && (step.representative_name || step.representative_email || step.representative_phone)) {
+        toast.success("Pré-preenchemos o participante com os dados do modelo. Confirme contatos e salve.");
+      }
     },
     [parties],
+  );
+
+  const createPartiesFromTemplate = useCallback(
+    async (template: WorkflowTemplate, { silent = false }: { silent?: boolean } = {}) => {
+      if (!selectedDocument || !template.steps?.length) {
+        return;
+      }
+      const existingRoles = new Set(parties.map(party => normalizeRoleValue(party.role)));
+      const missingContacts: string[] = [];
+      const payloads: DocumentPartyPayload[] = [];
+      template.steps.forEach((step, index) => {
+        const normalizedRole = normalizeRoleValue(step.role) || `etapa_${index + 1}`;
+        if (existingRoles.has(normalizedRole)) {
+          return;
+        }
+        const fullName = step.representative_name?.trim();
+        if (!fullName) {
+          missingContacts.push(step.role || `papel_${index + 1}`);
+          return;
+        }
+        const cleanedEmail = step.representative_email?.trim().toLowerCase() ?? "";
+        const rawPhone = step.representative_phone?.trim() ?? "";
+        const digitsPhone = rawPhone ? normalizePhone(rawPhone) : "";
+        const hasEmail = Boolean(cleanedEmail);
+        const hasPhone = Boolean(digitsPhone);
+        if (!hasEmail && !hasPhone) {
+          missingContacts.push(fullName);
+          return;
+        }
+        let channel: "email" | "sms" = step.notification_channel === "sms" ? "sms" : "email";
+        if (channel === "email" && !hasEmail && hasPhone) {
+          channel = "sms";
+        } else if (channel === "sms" && !hasPhone && hasEmail) {
+          channel = "email";
+        }
+        if (channel === "email" && !hasEmail) {
+          missingContacts.push(fullName);
+          return;
+        }
+        if (channel === "sms" && !hasPhone) {
+          missingContacts.push(fullName);
+          return;
+        }
+        const phoneValue = digitsPhone ? (rawPhone.startsWith("+") ? `+${digitsPhone}` : digitsPhone) : undefined;
+        const normalizedCpf = step.representative_cpf ? step.representative_cpf.replace(/\D/g, "") : undefined;
+        const normalizedCompanyTax = step.company_tax_id ? step.company_tax_id.replace(/\D/g, "") : undefined;
+        payloads.push({
+          full_name: fullName,
+          email: hasEmail ? cleanedEmail : undefined,
+          phone_number: phoneValue,
+          cpf: normalizedCpf || undefined,
+          role: normalizedRole,
+          order_index: index + 1,
+          notification_channel: channel,
+          company_name: step.company_name ?? undefined,
+          company_tax_id: normalizedCompanyTax || undefined,
+          require_cpf: Boolean(step.representative_cpf),
+          require_email: channel === "email",
+          require_phone: channel === "sms",
+          allow_typed_name: true,
+          allow_signature_image: true,
+          allow_signature_draw: true,
+          signature_method: step.signature_method === "digital" ? "digital" : "electronic",
+        });
+      });
+      if (!payloads.length) {
+        if (!silent && missingContacts.length) {
+          toast.error(`Não foi possível gerar participantes para: ${missingContacts.join(", ")}`);
+        }
+        return;
+      }
+      setAutoCreatingParties(true);
+      const failures: string[] = [];
+      let created = 0;
+      try {
+        for (const payload of payloads) {
+          try {
+            await createDocumentParty(selectedDocument.id, payload);
+            created += 1;
+          } catch (error) {
+            console.error(error);
+            failures.push(payload.full_name ?? payload.role ?? "participante");
+          }
+        }
+        if (created > 0) {
+          await loadParties(selectedDocument.id);
+        }
+        if (!silent) {
+          if (created > 0) {
+            toast.success(`${created} participante(s) adicionados a partir do modelo.`);
+          }
+          if (failures.length) {
+            toast.error(`Falha ao adicionar: ${failures.join(", ")}`);
+          }
+          if (missingContacts.length) {
+            toast.error(`Sem contato suficiente para: ${missingContacts.join(", ")}`);
+          }
+        }
+      } finally {
+        setAutoCreatingParties(false);
+      }
+    },
+    [loadParties, parties, selectedDocument, toast],
   );
 
   const handleOpenTemplateModal = () => {
@@ -1120,11 +1258,7 @@ export default function DocumentManagerPage({
   const applyTemplateSteps = useCallback(
     (
       template: WorkflowTemplate,
-      {
-        resetParties = false,
-        silent = false,
-        markDirty = true,
-      }: { resetParties?: boolean; silent?: boolean; markDirty?: boolean } = {},
+      { silent = false, markDirty = true }: { silent?: boolean; markDirty?: boolean } = {},
     ) => {
       if (!template.steps || template.steps.length === 0) {
         toast.error("Este modelo nao possui etapas configuradas.");
@@ -1138,37 +1272,40 @@ export default function DocumentManagerPage({
         action: step.action,
         execution: step.execution,
         deadline_hours: step.deadline_hours ?? null,
-        notification_channel: "email",
+        notification_channel: step.notification_channel === "sms" ? "sms" : "email",
+        signature_method: step.signature_method === "digital" ? "digital" : "electronic",
+        representative_name: step.representative_name ?? "",
+        representative_cpf: step.representative_cpf ?? "",
+        company_name: step.company_name ?? "",
+        company_tax_id: step.company_tax_id ?? "",
+        representative_email: step.representative_email ?? "",
+        representative_phone: step.representative_phone ?? "",
       }));
       setManualFlowSteps(builderSteps);
       if (markDirty) {
         setManualFlowDirty(true);
       }
-      if (resetParties) {
-        setParties([]);
+      if (builderSteps.length > 0) {
+        const firstStep = builderSteps[0];
+        const hasSuggestion =
+          Boolean(firstStep.representative_name) ||
+          Boolean(firstStep.representative_email) ||
+          Boolean(firstStep.representative_phone);
+        focusPartyFormForStep(firstStep, hasSuggestion);
+      } else {
+        resetPartyForm(1);
+        setTemplateRoleEditing(null);
+        setEditingPartyId(null);
       }
-      const firstRole = builderSteps[0]?.role ?? null;
-      const normalizedFirstRole = normalizeRoleValue(firstRole);
-      const nextOrderForRole =
-        normalizedFirstRole?.length
-          ? parties.filter(item => normalizeRoleValue(item.role) === normalizedFirstRole).length + 1
-          : parties.length + 1;
-      const nextPartyForm = {
-        ...defaultPartyForm(nextOrderForRole),
-        role: firstRole ?? "signer",
-      };
-      setTemplateRoleEditing(firstRole);
-      setEditingPartyId(null);
-      setPartyForm(nextPartyForm);
       if (!silent) {
         toast.success("Modelo aplicado ao fluxo manual.");
       }
       return true;
     },
-    [parties],
+    [focusPartyFormForStep, resetPartyForm],
   );
 
-  const handleApplyTemplate = useCallback(() => {
+  const handleApplyTemplate = useCallback(async () => {
     if (!selectedTemplateId) {
       toast.error("Selecione um modelo para aplicar.");
       return;
@@ -1178,8 +1315,9 @@ export default function DocumentManagerPage({
       toast.error("Modelo selecionado nao foi encontrado.");
       return;
     }
-    applyTemplateSteps(template, { resetParties: true, silent: false, markDirty: true });
-  }, [applyTemplateSteps, selectedTemplateId, templateOptions]);
+    applyTemplateSteps(template, { silent: false, markDirty: true });
+    await createPartiesFromTemplate(template);
+  }, [applyTemplateSteps, createPartiesFromTemplate, selectedTemplateId, templateOptions]);
 
   const handleTemplateSelection = useCallback(
     (value: string) => {
@@ -1195,9 +1333,10 @@ export default function DocumentManagerPage({
         toast.error("Modelo selecionado nao foi encontrado.");
         return;
       }
-      applyTemplateSteps(template, { resetParties: false, silent: true, markDirty: true });
+      applyTemplateSteps(template, { silent: true, markDirty: true });
+      void createPartiesFromTemplate(template, { silent: true });
     },
-    [applyTemplateSteps, templateOptions],
+    [applyTemplateSteps, createPartiesFromTemplate, templateOptions],
   );
 
   const refreshVersion = useCallback(
@@ -2283,10 +2422,10 @@ export default function DocumentManagerPage({
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={handleApplyTemplate}
-                  disabled={!selectedTemplateId || templateLoading}
+                  onClick={() => void handleApplyTemplate()}
+                  disabled={!selectedTemplateId || templateLoading || autoCreatingParties}
                 >
-                  Aplicar modelo
+                  {autoCreatingParties ? "Aplicando..." : "Aplicar modelo"}
                 </button>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -2306,6 +2445,9 @@ export default function DocumentManagerPage({
                 <p className="text-xs text-slate-500">
                   Escolha um modelo para preencher o fluxo automaticamente ou siga com o cadastro manual.
                 </p>
+              )}
+              {autoCreatingParties && (
+                <p className="text-xs text-indigo-600">Gerando participantes sugeridos a partir do modelo...</p>
               )}
             </div>
             {usingTemplate && manualFlowSteps.length > 0 && (
@@ -2344,6 +2486,36 @@ export default function DocumentManagerPage({
                           Tipo de execução: <span className="font-medium">{step.execution === "parallel" ? "Paralela" : "Sequencial"}</span>
                         </p>
                       </div>
+                      {roleParties.length === 0 && (
+                        <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                          <p>
+                            Utilize os dados do modelo para iniciar o cadastro do participante ou crie um representante manualmente.
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(step.representative_name ||
+                              step.representative_cpf ||
+                              step.company_name ||
+                              step.company_tax_id ||
+                              step.representative_email ||
+                              step.representative_phone) && (
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-xs"
+                                onClick={() => focusPartyFormForStep(step, true)}
+                              >
+                                Usar dados do modelo
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-xs"
+                              onClick={() => focusPartyFormForStep(step, false)}
+                            >
+                              Cadastrar participante
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {templateRoleEditing === step.id && (
                         <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2">
                           <p className="text-xs font-semibold text-slate-700">Vincular participantes</p>
@@ -2929,6 +3101,9 @@ export default function DocumentManagerPage({
               </label>
             </div>
             {dispatchError && <div className="text-xs text-rose-600">{dispatchError}</div>}
+            {!canDispatch && dispatchDisabledReason && (
+              <div className="text-xs text-rose-600">{dispatchDisabledReason}</div>
+            )}
             <div className="flex items-center justify-end">
               <button type="submit" className="btn btn-primary" disabled={!canDispatch || dispatching}>
                 {dispatching ? "Enviando..." : "Enviar para assinatura"}

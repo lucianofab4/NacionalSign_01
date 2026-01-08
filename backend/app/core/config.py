@@ -29,6 +29,8 @@ class Settings(BaseSettings):
 
     # Banco de dados
     database_url: str = "sqlite:///./dev.db"
+    local_database_url: Optional[str] = None
+    database_fallback_url: Optional[str] = None
     redis_url: str = "redis://localhost:6379/0"
 
     # Armazenamento S3 / MinIO

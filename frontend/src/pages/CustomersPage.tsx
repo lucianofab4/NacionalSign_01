@@ -5,7 +5,10 @@ import {
   fetchCustomers,
   createCustomer,
   updateCustomer,
+  deleteCustomer,
   generateCustomerActivationLink,
+  grantCustomerDocuments,
+  renewCustomerPlan,
   fetchPlans,
   type CustomerSummary,
   type CustomerCreatePayload,
@@ -59,6 +62,9 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [lastActivation, setLastActivation] = useState<CustomerActivationLink | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [grantingId, setGrantingId] = useState<string | null>(null);
+  const [renewingId, setRenewingId] = useState<string | null>(null);
 
   const planOptions = useMemo(() => plans.filter(plan => plan.is_active), [plans]);
 
@@ -98,9 +104,9 @@ export default function CustomersPage() {
       }
     }
     if (copied) {
-      toast.success(autoCopy ? 'Link do cliente gerado e copiado.' : 'Link de ativa��o copiado.');
+      toast.success(autoCopy ? 'Link do cliente gerado e copiado.' : 'Link de ativação copiado.');
     } else {
-      toast.success(autoCopy ? 'Link do cliente gerado.' : 'Link de ativa��o gerado.');
+      toast.success(autoCopy ? 'Link do cliente gerado.' : 'Link de ativação gerado.');
     }
     return link;
   };
@@ -109,10 +115,10 @@ export default function CustomersPage() {
     if (!lastActivation) return;
     try {
       await navigator.clipboard.writeText(lastActivation.activation_url);
-      toast.success('Link copiado para a �rea de transfer�ncia.');
+      toast.success('Link copiado para a área de transferência.');
     } catch (error) {
       console.error(error);
-      toast.error('N�o foi poss�vel copiar o link.');
+      toast.error('Não foi possível copiar o link.');
     }
   };
 
@@ -199,6 +205,86 @@ export default function CustomersPage() {
       toast.error('Não foi possível gerar o link de ativação.');
     } finally {
       setGenerating(null);
+    }
+  };
+
+  const handleDelete = async (customer: CustomerSummary) => {
+    const confirmed = window.confirm(
+      `Excluir o cliente "${customer.corporate_name}"? Essa ação remove o cadastro e libera o tenant vinculado.`,
+    );
+    if (!confirmed) return;
+    try {
+      setDeletingId(customer.id);
+      await deleteCustomer(customer.id);
+      setCustomers(prev => prev.filter(item => item.id !== customer.id));
+      if (selectedCustomer?.id === customer.id) resetForm();
+      toast.success('Cliente excluído.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Não foi possível excluir o cliente.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleGrantDocuments = async (customer: CustomerSummary) => {
+    const suggestion = customer.document_quota ? Math.max(Math.ceil(customer.document_quota * 0.2), 1) : 10;
+    const input = window.prompt(
+      `Quantos documentos adicionais deseja liberar para ${customer.corporate_name}?`,
+      String(suggestion),
+    );
+    if (input === null) return;
+    const amount = Number(input);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Informe uma quantidade válida.');
+      return;
+    }
+    try {
+      setGrantingId(customer.id);
+      const updated = await grantCustomerDocuments(customer.id, Math.floor(amount));
+      setCustomers(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+      if (selectedCustomer?.id === updated.id) {
+        handleEdit(updated);
+      }
+      toast.success(`Liberados ${Math.floor(amount)} documentos extras.`);
+    } catch (error: any) {
+      console.error(error);
+      const detail = error?.response?.data?.detail ?? 'Não foi possível liberar documentos extras.';
+      toast.error(detail);
+    } finally {
+      setGrantingId(null);
+    }
+  };
+
+  const handleRenewPlan = async (customer: CustomerSummary) => {
+    if (!customer.plan_id) {
+      toast.error('Cliente sem plano associado.');
+      return;
+    }
+    const input = window.prompt(
+      `Por quantos dias deseja renovar o plano de ${customer.corporate_name}?`,
+      '30',
+    );
+    if (input === null) return;
+    const days = Number(input);
+    if (!Number.isFinite(days) || days <= 0) {
+      toast.error('Informe um número de dias válido.');
+      return;
+    }
+    try {
+      setRenewingId(customer.id);
+      const updated = await renewCustomerPlan(customer.id, Math.floor(days));
+      setCustomers(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+      if (selectedCustomer?.id === updated.id) {
+        handleEdit(updated);
+      }
+      toast.success(`Plano renovado por ${Math.floor(days)} dias.`);
+    } catch (error: any) {
+      console.error(error);
+      const detail = error?.response?.data?.detail ?? 'Não foi possível renovar o plano.';
+      toast.error(detail);
+    } finally {
+      setRenewingId(null);
     }
   };
   const handleRefresh = async () => {
@@ -361,7 +447,7 @@ export default function CustomersPage() {
           <h2 className="text-lg font-semibold text-slate-700">Clientes cadastrados</h2>
           {lastActivation && (
             <div className="text-xs text-slate-500">
-              Último link gerado:{' '}
+              Último link gerado{' '}
               <a className="text-primary-600 underline" href={lastActivation.activation_url} target="_blank" rel="noreferrer">
                 {lastActivation.activation_url}
               </a>
@@ -393,7 +479,7 @@ export default function CustomersPage() {
                       ? `${customer.document_quota} docs`
                       : customer.document_quota !== null
                         ? `${customer.document_quota} docs`
-                        : '—';
+                      : '—';
                   return (
                     <tr key={customer.id} className="border-t border-slate-100">
                       <td className="px-4 py-3">
@@ -433,11 +519,32 @@ export default function CustomersPage() {
                             Editar
                           </button>
                           <button
+                            className="btn btn-outline btn-xs"
+                            onClick={() => handleGrantDocuments(customer)}
+                            disabled={grantingId === customer.id}
+                          >
+                            {grantingId === customer.id ? 'Liberando...' : 'Liberar docs'}
+                          </button>
+                          <button
+                            className="btn btn-outline btn-xs"
+                            onClick={() => handleRenewPlan(customer)}
+                            disabled={renewingId === customer.id || !customer.plan_id}
+                          >
+                            {renewingId === customer.id ? 'Renovando...' : 'Renovar plano'}
+                          </button>
+                          <button
                             className="btn btn-secondary btn-xs"
                             onClick={() => handleGenerateLink(customer)}
                             disabled={generating === customer.id}
                           >
                             {generating === customer.id ? 'Gerando...' : 'Gerar link'}
+                          </button>
+                          <button
+                            className="btn btn-error btn-xs"
+                            onClick={() => handleDelete(customer)}
+                            disabled={deletingId === customer.id}
+                          >
+                            {deletingId === customer.id ? 'Excluindo...' : 'Excluir'}
                           </button>
                         </div>
                       </td>
